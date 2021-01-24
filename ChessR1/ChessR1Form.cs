@@ -18,6 +18,22 @@ using System.Windows.Forms;
 
 namespace ChessR1
 {
+    public class PieceType
+    {
+        public const int Empty = 0;
+        public const int King = 1; public const int Queen = 2; public const int Rook = 3; 
+        public const int Bishop = 4; public const int Knight = 5; public const int Pawn = 6;
+    };
+    public class PieceColor
+    {
+        public const int White = 0; public const int Black = 8;
+    };
+
+    public class Board
+    {
+        public byte [,] cells = new byte[8,8];
+    };
+
     public partial class ChessR1Form : Form
     {
         private Brush brushBlack = new System.Drawing.SolidBrush(Color.Black);
@@ -28,6 +44,7 @@ namespace ChessR1
         float thickness;
         System.Drawing.Pen penBlack;
         Font fontPieces = new Font("Arial", 60);
+        Board m_board = new Board();
 
 
         public ChessR1Form() {
@@ -67,9 +84,9 @@ namespace ChessR1
 
         }
 
-        private void DrawPiece(Graphics g, int piece, int irow, int icol) {
-            string strPieces = "♚♛♜♝♞♟♔♕♖♗♘♙";
-            string strPiece = strPieces.Substring(piece, 1);
+        private void DrawPiece(Graphics g, int pieceWithColor, int irow, int icol) {
+            string strPieces = " ♚♛♜♝♞♟  ♔♕♖♗♘♙  ";
+            string strPiece = strPieces.Substring(pieceWithColor, 1);
             SizeF textSize = g.MeasureString(strPiece, fontPieces);
             PointF textSizeF = textSize.ToPointF();
             float x = (float)(offsetLeft + squareSize * icol + 0.0*textSizeF.X);
@@ -91,6 +108,43 @@ namespace ChessR1
             }
         }
 
+        void DrawBoard(Graphics g, ref Board board) {
+            DrawSquares(g);
+            for (int irow = 0; irow < 8; irow++) {
+                for (int icol = 0; icol < 8; icol++) {
+                    if (board.cells[irow, icol] != 0) {
+                        DrawPiece(g, board.cells[irow, icol], irow, icol);
+                    }
+                }
+            }
+        }
+
+
+
+        void CreateInitialBoard(ref Board board) {
+            board.cells[0, 0] = PieceColor.White | PieceType.Rook;
+            board.cells[0, 1] = PieceColor.White | PieceType.Knight;
+            board.cells[0, 2] = PieceColor.White | PieceType.Bishop;
+            board.cells[0, 3] = PieceColor.White | PieceType.Queen;
+            board.cells[0, 4] = PieceColor.White | PieceType.King;
+            board.cells[0, 5] = PieceColor.White | PieceType.Bishop;
+            board.cells[0, 6] = PieceColor.White | PieceType.Knight;
+            board.cells[0, 7] = PieceColor.White | PieceType.Rook;
+            for (int icol = 0; icol < 8; icol++) {
+                board.cells[1, icol] = PieceColor.White | PieceType.Pawn;
+                board.cells[6, icol] = PieceColor.Black | PieceType.Pawn;
+            }
+
+            board.cells[7, 0] = PieceColor.Black | PieceType.Rook;
+            board.cells[7, 1] = PieceColor.Black | PieceType.Knight;
+            board.cells[7, 2] = PieceColor.Black | PieceType.Bishop;
+            board.cells[7, 3] = PieceColor.Black | PieceType.Queen;
+            board.cells[7, 4] = PieceColor.Black | PieceType.King;
+            board.cells[7, 5] = PieceColor.Black | PieceType.Bishop;
+            board.cells[7, 6] = PieceColor.Black | PieceType.Knight;
+            board.cells[7, 7] = PieceColor.Black | PieceType.Rook;
+        }
+
         private void ChessR1Form_Paint(object sender, PaintEventArgs e) {
             // Drawing pieces by using the Unicode characters for chess pieces isn't great.
             // The first 6 pieces are more or less hollow and the next 6 are filled-in.
@@ -110,25 +164,29 @@ namespace ChessR1
             //string fontColorName = "moccasin";  // "antiquewhite"
             //BackColor = Color.FromName(fontColorName);
 
-            DrawSquares(e.Graphics);
-            DrawPawn(e.Graphics, 1, 1);
+            //DrawSquares(e.Graphics);
+            //DrawPawn(e.Graphics, 1, 1);
 
-            int piece = 0;
-            for (int irow = 0; irow < 5; irow++) {
-                for (int icol = 0; icol < 8; icol++) {
-                    DrawPiece(e.Graphics, piece, irow, icol);
-                    piece++;
-                    if (piece > 11) piece = 0;
-                }
-            }
+            //int piece = 0;
+            //for (int irow = 0; irow < 5; irow++) {
+            //    for (int icol = 0; icol < 8; icol++) {
+            //        DrawPiece(e.Graphics, piece, irow, icol);
+            //        piece++;
+            //        if (piece > 15) piece = 0;
+            //    }
+            //}
 
             //Brush brush = new System.Drawing.SolidBrush(System.Drawing.Color.White);
             //e.Graphics.DrawString("♔♕♖♗♘♙ ♚♛♜♝♞♟", font, brush, 120.0F, 130.0F);
             //Brush brush = new System.Drawing.SolidBrush(System.Drawing.Color.Black);
-            e.Graphics.DrawString("♔♕♖♗♘♙ ♚♛♜♝♞♟", fontPieces, brushBlack, 
-                (float)(offsetLeft + 0.15*squareSize), (float)(offsetTop + 6.15*squareSize));
-            e.Graphics.DrawString("♔♕♖♗♘♙ ♚♛♜♝♞♟", fontPieces, brushBlack,
-                (float)(offsetLeft + 0.15 * squareSize), (float)(offsetTop + 6.15 * squareSize));
+
+            //e.Graphics.DrawString("♔♕♖♗♘♙ ♚♛♜♝♞♟", fontPieces, brushBlack, 
+            //    (float)(offsetLeft + 0.15*squareSize), (float)(offsetTop + 6.15*squareSize));
+            //e.Graphics.DrawString("♔♕♖♗♘♙ ♚♛♜♝♞♟", fontPieces, brushBlack,
+            //    (float)(offsetLeft + 0.15 * squareSize), (float)(offsetTop + 6.15 * squareSize));
+
+            CreateInitialBoard(ref m_board);
+            DrawBoard(e.Graphics, ref m_board);
         }
     }
 }
