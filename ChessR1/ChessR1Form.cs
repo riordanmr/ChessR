@@ -9,48 +9,42 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
+using System.Diagnostics;
 using System.Drawing;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace ChessR1
 {
-    public class PieceType
-    {
-        public const int Empty = 0;
-        public const int King = 1; public const int Queen = 2; public const int Rook = 3; 
-        public const int Bishop = 4; public const int Knight = 5; public const int Pawn = 6;
-    };
-    public class PieceColor
-    {
-        public const int White = 0; public const int Black = 8;
-    };
-
-    public class Board
-    {
-        public byte [,] cells = new byte[8,8];
-    };
-
     public partial class ChessR1Form : Form
     {
         private Brush brushBlack = new System.Drawing.SolidBrush(Color.Black);
         private Brush brushWhite = new SolidBrush(Color.White);
+        Brush brushBoardLight = new SolidBrush(Color.FromName("cornsilk"));
+        Brush brushBoardDark = new SolidBrush(Color.FromName("moccasin"));
         float offsetTop = 90.0F;
         float offsetLeft = 90.0F;
         float squareSize = 120.0F;
         float thickness;
         System.Drawing.Pen penBlack;
+        Pen penSelectedStart = new Pen(Color.MediumSpringGreen, 2.0F);
         Font fontPieces = new Font("Arial", 60);
+        Font fontCoords = new Font("Lucida Console", 24);
         Board m_board = new Board();
+        const int NUMROWS = 8;
+        const int NUMCOLS = 8;
+        const int NOT_SELECTED = -1;
+        int selectedRowStart = NOT_SELECTED, selectedColStart = NOT_SELECTED;
 
 
         public ChessR1Form() {
             InitializeComponent();
             thickness = (float)(squareSize * 0.04);
-            penBlack = new System.Drawing.Pen(System.Drawing.Color.Black, 1*thickness);
+            penBlack = new System.Drawing.Pen(System.Drawing.Color.Black, 1 * thickness);
+        }
+
+        public void DebugOut(string msg) {
+            System.Diagnostics.Trace.WriteLine(msg);
         }
 
         private void ChessR1Form_Load(object sender, EventArgs e) {
@@ -59,8 +53,9 @@ namespace ChessR1
 
         // Drawing a pawn by computing all the geometric shapes, and trying to 
         // have a border (by following Draw with Fill) is really hard.
-        // And the results look surprisingly grainy.  I may abandon this.
-        private void DrawPawn(Graphics g, int irow, int icol) {
+        // And the results look surprisingly grainy.  
+        // I have abandoned this approach for now.
+        private void DrawPawnBad(Graphics g, int irow, int icol) {
             float x = (float) (offsetLeft + icol * squareSize + 0.42 * squareSize);
             float y = (float) (offsetTop + irow * squareSize + 0.25 * squareSize);
             float diameter = (float)(squareSize * 0.2);
@@ -81,9 +76,15 @@ namespace ChessR1
             pointsTriangle[2] = new PointF(x, y);
 
             g.DrawPolygon(penBlack, pointsTriangle);
-
         }
 
+        /// <summary>
+        /// Draw a single piece on the board.
+        /// </summary>
+        /// <param name="g">A Graphics object</param>
+        /// <param name="pieceWithColor">A combination of PieceType and PieceColor</param>
+        /// <param name="irow">The row, 0-7</param>
+        /// <param name="icol">The column 0-7</param>
         private void DrawPiece(Graphics g, int pieceWithColor, int irow, int icol) {
             string strPieces = " ♚♛♜♝♞♟  ♔♕♖♗♘♙  ";
             string strPiece = strPieces.Substring(pieceWithColor, 1);
@@ -94,22 +95,51 @@ namespace ChessR1
             g.DrawString(strPiece, fontPieces, brushBlack, x, y);
         }
 
+        // Draw the squares of the board. 
+        // This should be done before drawing the pieces and highlights, as
+        // those are drawn on top of the squares.
         private void DrawSquares(Graphics g) {
-            Color colorLight = Color.FromName("cornsilk"); // moccasin papayawhip
-            Brush brushLight = new System.Drawing.SolidBrush(colorLight);
-            Color colorDark = Color.FromName("moccasin"); // peru tan
-            Brush brushDark = new System.Drawing.SolidBrush(colorDark);
-
             for (int irow = 0; irow < 8; irow++) {
                 for (int icol = 0; icol < 8; icol++) {
-                    Brush brush = ((irow + icol) % 2) == 0 ? brushLight : brushDark;
+                    Brush brush = ((irow + icol) % 2) == 0 ? brushBoardLight : brushBoardDark;
                     g.FillRectangle(brush, offsetLeft + squareSize * icol, offsetTop + squareSize * irow, squareSize, squareSize);
                 }
             }
         }
 
+        // Draw the algebraic notation coordinates on the sides of the board.
+        void DrawCoordinates(Graphics g) {
+            SizeF textSize = g.MeasureString("a", fontCoords);
+            string strLetters = "abcdefgh";
+            for (int icol = 0; icol < 8; icol++) {
+                float x = (float)(offsetLeft + squareSize * (icol + 0.5) - textSize.Width * 0.5);
+                float y = (float)(offsetTop + squareSize * 8.1);
+                g.DrawString(strLetters.Substring(icol, 1), fontCoords, brushWhite, x, y);
+            }
+
+            string strNumbers = "12345678";
+            for (int irow = 0; irow < 8; irow++) {
+                float x = (float)(offsetLeft - squareSize * 0.4);
+                float y = (float)(offsetTop + squareSize * (irow + 0.5) - textSize.Height*0.5);
+                g.DrawString(strNumbers.Substring(7-irow, 1), fontCoords, brushWhite, x, y);
+            }
+        }
+
+        // Draw colored rectangles in the squares we want to highlight.
+        // The square currently selected by the user (if any) gets a green rectangle.
+        void DrawHighlights(Graphics g) {
+            if (selectedRowStart >= 0 && selectedColStart >= 0) {
+                float x = (float)(offsetLeft + (selectedColStart + 0.05) * squareSize);
+                float y = (float)(offsetTop + (selectedRowStart + 0.05) * squareSize);
+                float width = (float)(squareSize*0.9);
+                float height = width;
+                g.DrawRectangle(penSelectedStart, x, y, width, height);
+            }
+        }
+
         void DrawBoard(Graphics g, ref Board board) {
             DrawSquares(g);
+            DrawCoordinates(g);
             for (int irow = 0; irow < 8; irow++) {
                 for (int icol = 0; icol < 8; icol++) {
                     if (board.cells[irow, icol] != 0) {
@@ -117,9 +147,8 @@ namespace ChessR1
                     }
                 }
             }
+            DrawHighlights(g);
         }
-
-
 
         void CreateInitialBoard(ref Board board) {
             board.cells[0, 0] = PieceColor.White | PieceType.Rook;
@@ -187,6 +216,23 @@ namespace ChessR1
 
             CreateInitialBoard(ref m_board);
             DrawBoard(e.Graphics, ref m_board);
+        }
+
+        private void ChessR1Form_MouseDown(object sender, MouseEventArgs e) {
+            // Implicit conversion from Point to PointF.
+            selectedColStart = NOT_SELECTED;
+            PointF pointMouse = e.Location;
+            if (pointMouse.X >= offsetLeft && pointMouse.X < offsetLeft + NUMCOLS * squareSize) {
+                if (pointMouse.Y > offsetTop && pointMouse.Y < offsetTop + NUMROWS * squareSize) {
+                    selectedColStart = (int)((pointMouse.X - offsetLeft) / squareSize);
+                    selectedRowStart = (int)((pointMouse.Y - offsetTop) / squareSize);
+                    //DebugOut($"Selected row {selectedRowStart} col {selectedColStart}");
+                }
+            }
+            //if (NOT_SELECTED == selectedColStart) {
+            //    DebugOut("Click detected off the board");
+            //}
+            Invalidate();
         }
     }
 }

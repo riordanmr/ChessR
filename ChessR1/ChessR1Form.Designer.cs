@@ -38,6 +38,7 @@ namespace ChessR1
             this.Text = "ChessR1";
             this.Load += new System.EventHandler(this.ChessR1Form_Load);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.ChessR1Form_Paint);
+            this.MouseDown += new System.Windows.Forms.MouseEventHandler(this.ChessR1Form_MouseDown);
             this.ResumeLayout(false);
 
         }
