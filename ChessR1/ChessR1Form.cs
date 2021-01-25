@@ -28,6 +28,7 @@ namespace ChessR1
         float thickness;
         System.Drawing.Pen penBlack;
         Pen penSelectedStart = new Pen(Color.MediumSpringGreen, 2.0F);
+        Pen penLegalMoves = new Pen(Color.Plum, 2.0F);
         Font fontPieces = new Font("Arial", 60);
         Font fontCoords = new Font("Lucida Console", 24);
         Board m_board = new Board();
@@ -35,6 +36,8 @@ namespace ChessR1
         const int NUMCOLS = 8;
         const int NOT_SELECTED = -1;
         int selectedRowStart = NOT_SELECTED, selectedColStart = NOT_SELECTED;
+        byte[] m_ValidMoves = new byte[64];
+        int m_nValidMoves;
 
 
         public ChessR1Form() {
@@ -49,6 +52,16 @@ namespace ChessR1
 
         private void ChessR1Form_Load(object sender, EventArgs e) {
 
+        }
+
+        // Combine a row and column number into a single integer.
+        byte CalcByteFromRowAndCol(int irow, int icol) {
+            return (byte)(NUMCOLS * icol + irow);
+        }
+
+        void CalcRowAndColFromByte(byte rowcol, out int irow, out int icol) {
+            irow = rowcol & (NUMCOLS - 1);
+            icol = rowcol / NUMCOLS;
         }
 
         // Drawing a pawn by computing all the geometric shapes, and trying to 
@@ -86,7 +99,7 @@ namespace ChessR1
         /// <param name="irow">The row, 0-7</param>
         /// <param name="icol">The column 0-7</param>
         private void DrawPiece(Graphics g, int pieceWithColor, int irow, int icol) {
-            string strPieces = " ♚♛♜♝♞♟  ♔♕♖♗♘♙  ";
+            string strPieces = " ♔♕♖♗♘♙  ♚♛♜♝♞♟  ";
             string strPiece = strPieces.Substring(pieceWithColor, 1);
             SizeF textSize = g.MeasureString(strPiece, fontPieces);
             PointF textSizeF = textSize.ToPointF();
@@ -135,6 +148,112 @@ namespace ChessR1
                 float height = width;
                 g.DrawRectangle(penSelectedStart, x, y, width, height);
             }
+
+            int irow, icol;
+            for (int idx = 0; idx < m_nValidMoves; idx++) {
+                CalcRowAndColFromByte(m_ValidMoves[idx], out irow, out icol);
+                float x = (float)(offsetLeft + (icol + 0.05) * squareSize);
+                float y = (float)(offsetTop + (irow + 0.05) * squareSize);
+                float width = (float)(squareSize * 0.9);
+                float height = width;
+                g.DrawRectangle(penLegalMoves, x, y, width, height);
+            }
+        }
+
+        int ComputeLegalMovesForRook(int irow, int icol, ref byte [] aryValidMoves) {
+            int nMoves = 0;
+            int ir, ic;
+            int pieceType = m_board.cells[irow, icol];
+            int myColor = pieceType & PieceColor.Mask;
+            int otherColor, otherPiece;
+            // Look in same row.
+            // First, look to the left.
+            for (ic = icol - 1; ic >= 0; ic--) {
+                otherPiece = m_board.cells[irow, ic];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(irow, ic);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(irow, ic);
+                    break;
+                }
+            }
+
+            for (ic = icol + 1; ic < NUMCOLS; ic++) {
+                otherPiece = m_board.cells[irow, ic];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(irow, ic);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(irow, ic);
+                    break;
+                }
+            }
+
+            // Now look in same column.
+            for (ir = irow - 1; ir >= 0; ir--) {
+                otherPiece = m_board.cells[ir, icol];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(ir, icol);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(ir, icol);
+                    break;
+                }
+            }
+            for (ir = irow + 1; ir < NUMROWS; ir++) {
+                otherPiece = m_board.cells[ir, icol];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(ir, icol);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = CalcByteFromRowAndCol(ir, icol);
+                    break;
+                }
+            }
+
+            return nMoves;
+        }
+
+
+        int ComputeLegalMovesForPiece(int irow, int icol) {
+            int pieceType = m_board.cells[irow, icol];
+            pieceType &= PieceType.Mask;
+            int nMoves=0;
+            switch (pieceType) {
+                case PieceType.Rook:
+                    nMoves = ComputeLegalMovesForRook(irow, icol, ref m_ValidMoves);
+                    break;
+            }
+            return nMoves;
         }
 
         void DrawBoard(Graphics g, ref Board board) {
@@ -151,27 +270,27 @@ namespace ChessR1
         }
 
         void CreateInitialBoard(ref Board board) {
-            board.cells[0, 0] = PieceColor.White | PieceType.Rook;
-            board.cells[0, 1] = PieceColor.White | PieceType.Knight;
-            board.cells[0, 2] = PieceColor.White | PieceType.Bishop;
-            board.cells[0, 3] = PieceColor.White | PieceType.Queen;
-            board.cells[0, 4] = PieceColor.White | PieceType.King;
-            board.cells[0, 5] = PieceColor.White | PieceType.Bishop;
-            board.cells[0, 6] = PieceColor.White | PieceType.Knight;
-            board.cells[0, 7] = PieceColor.White | PieceType.Rook;
+            board.cells[0, 0] = PieceColor.Black | PieceType.Rook;
+            board.cells[0, 1] = PieceColor.Black | PieceType.Knight;
+            board.cells[0, 2] = PieceColor.Black | PieceType.Bishop;
+            board.cells[0, 3] = PieceColor.Black | PieceType.Queen;
+            board.cells[0, 4] = PieceColor.Black | PieceType.King;
+            board.cells[0, 5] = PieceColor.Black | PieceType.Bishop;
+            board.cells[0, 6] = PieceColor.Black | PieceType.Knight;
+            board.cells[0, 7] = PieceColor.Black | PieceType.Rook;
             for (int icol = 0; icol < 8; icol++) {
-                board.cells[1, icol] = PieceColor.White | PieceType.Pawn;
-                board.cells[6, icol] = PieceColor.Black | PieceType.Pawn;
+                board.cells[1, icol] = PieceColor.Black | PieceType.Pawn;
+                board.cells[6, icol] = PieceColor.White | PieceType.Pawn;
             }
 
-            board.cells[7, 0] = PieceColor.Black | PieceType.Rook;
-            board.cells[7, 1] = PieceColor.Black | PieceType.Knight;
-            board.cells[7, 2] = PieceColor.Black | PieceType.Bishop;
-            board.cells[7, 3] = PieceColor.Black | PieceType.Queen;
-            board.cells[7, 4] = PieceColor.Black | PieceType.King;
-            board.cells[7, 5] = PieceColor.Black | PieceType.Bishop;
-            board.cells[7, 6] = PieceColor.Black | PieceType.Knight;
-            board.cells[7, 7] = PieceColor.Black | PieceType.Rook;
+            board.cells[7, 0] = PieceColor.White | PieceType.Rook;
+            board.cells[7, 1] = PieceColor.White | PieceType.Knight;
+            board.cells[7, 2] = PieceColor.White | PieceType.Bishop;
+            board.cells[7, 3] = PieceColor.White | PieceType.Queen;
+            board.cells[7, 4] = PieceColor.White | PieceType.King;
+            board.cells[7, 5] = PieceColor.White | PieceType.Bishop;
+            board.cells[7, 6] = PieceColor.White | PieceType.Knight;
+            board.cells[7, 7] = PieceColor.White | PieceType.Rook;
         }
 
         private void ChessR1Form_Paint(object sender, PaintEventArgs e) {
@@ -215,6 +334,8 @@ namespace ChessR1
             //    (float)(offsetLeft + 0.15 * squareSize), (float)(offsetTop + 6.15 * squareSize));
 
             CreateInitialBoard(ref m_board);
+            // Sample piece on board - temporary.
+            m_board.cells[3, 3] = PieceType.Rook | PieceColor.White;
             DrawBoard(e.Graphics, ref m_board);
         }
 
@@ -226,12 +347,14 @@ namespace ChessR1
                 if (pointMouse.Y > offsetTop && pointMouse.Y < offsetTop + NUMROWS * squareSize) {
                     selectedColStart = (int)((pointMouse.X - offsetLeft) / squareSize);
                     selectedRowStart = (int)((pointMouse.Y - offsetTop) / squareSize);
+                    m_nValidMoves = ComputeLegalMovesForPiece(selectedRowStart, selectedColStart);
                     //DebugOut($"Selected row {selectedRowStart} col {selectedColStart}");
                 }
             }
             //if (NOT_SELECTED == selectedColStart) {
             //    DebugOut("Click detected off the board");
             //}
+
             Invalidate();
         }
     }
