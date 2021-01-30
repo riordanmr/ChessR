@@ -27,6 +27,7 @@ namespace ChessR1
         float thickness;
         System.Drawing.Pen penBlack;
         Pen penSelectedStart = new Pen(Color.MediumSpringGreen, 2.0F);
+        Pen penSelectedStop = new Pen(Color.Tomato, 2.0F);
         Pen penLegalMoves = new Pen(Color.Plum, 2.0F);
         // I'm using Unicode characters to render the pieces.  
         // I don't think that all the different fonts each has a unique rendering of 
@@ -40,6 +41,9 @@ namespace ChessR1
         const int NUMCOLS = 8;
         const int NOT_SELECTED = -1;
         int selectedRowStart = NOT_SELECTED, selectedColStart = NOT_SELECTED;
+        int selectedRowStop = NOT_SELECTED, selectedColStop = NOT_SELECTED;
+        // Valid moves for the currently-selected piece.  Each byte contains a row and column
+        // as encoded by CalcByteFromRowAndCol.
         byte[] m_ValidMoves = new byte[64];
         int m_nValidMoves;
         bool bWhiteOnBottom = true;
@@ -52,11 +56,7 @@ namespace ChessR1
         }
 
         public void DebugOut(string msg) {
-            System.Diagnostics.Trace.WriteLine(msg);
-        }
-
-        private void ChessR1Form_Load(object sender, EventArgs e) {
-
+            System.Diagnostics.Trace.WriteLine(DateTime.Now + " " + msg);
         }
 
         // Combine a row and column number into a single integer.
@@ -169,6 +169,60 @@ namespace ChessR1
                 float height = width;
                 g.DrawRectangle(penLegalMoves, x, y, width, height);
             }
+
+            // Highlight the square to which a piece was just moved, if any.
+            if (selectedRowStop >= 0 && selectedColStop >= 0) {
+                float x = (float)(offsetLeft + (selectedColStop + 0.05) * squareSize);
+                float y = (float)(offsetTop + (selectedRowStop + 0.05) * squareSize);
+                float width = (float)(squareSize * 0.9);
+                float height = width;
+                g.DrawRectangle(penSelectedStop, x, y, width, height);
+            }
+        }
+
+
+        void DrawPieces(Graphics g, ref Board board) {
+            int nDrawn = 0;
+            for (int irow = 0; irow < NUMROWS; irow++) {
+                for (int icol = 0; icol < NUMCOLS; icol++) {
+                    if (board.cells[irow, icol] != 0) {
+                        DrawPiece(g, board.cells[irow, icol], irow, icol);
+                        nDrawn++;
+                    } else {
+                        DrawPiece(g, 0, irow, icol);
+                    }
+                }
+            }
+        }
+
+        // Compute a textual representation of the board.
+        // Capital letters are used for white pieces, lower case for black,
+        // and "." for empty squares.
+        string ComputeTextualBoard() {
+            string strBoard = "";
+            for (int irow = 0; irow < NUMROWS; irow++) {
+                for (int icol = 0; icol < NUMCOLS; icol++) {
+                    int piece = m_board.cells[irow, icol] & PieceType.Mask;
+                    int color = m_board.cells[irow, icol] & PieceColor.Mask;
+                    string strPieces = (color == PieceColor.White) ? ".KQRBNP*" : ".kqrbnp*";
+                    strBoard += strPieces.Substring(piece, 1);
+                }
+                strBoard += "\r\n";
+            }
+            return strBoard;
+        }
+
+        void DrawTextualBoard() {
+            textBoxBoard.Text = ComputeTextualBoard();
+        }
+
+        void DrawBoard(Graphics g, ref Board board) {
+            DebugOut("DrawBoard here");
+            DrawTextualBoard();
+            DrawSquares(g);
+            DrawCoordinates(g);
+            DrawPieces(g, ref board);
+            DrawHighlights(g);
         }
 
         int ComputeLegalMovesForPawn(int irow, int icol, ref byte[] aryValidMoves) {
@@ -332,19 +386,6 @@ namespace ChessR1
             return nMoves;
         }
 
-        void DrawBoard(Graphics g, ref Board board) {
-            DrawSquares(g);
-            DrawCoordinates(g);
-            for (int irow = 0; irow < 8; irow++) {
-                for (int icol = 0; icol < 8; icol++) {
-                    if (board.cells[irow, icol] != 0) {
-                        DrawPiece(g, board.cells[irow, icol], irow, icol);
-                    }
-                }
-            }
-            DrawHighlights(g);
-        }
-
         void CreateInitialBoard(ref Board board) {
             board.cells[0, 0] = PieceColor.Black | PieceType.Rook;
             board.cells[0, 1] = PieceColor.Black | PieceType.Knight;
@@ -367,6 +408,15 @@ namespace ChessR1
             board.cells[7, 5] = PieceColor.White | PieceType.Bishop;
             board.cells[7, 6] = PieceColor.White | PieceType.Knight;
             board.cells[7, 7] = PieceColor.White | PieceType.Rook;
+        }
+
+        private void ChessR1Form_Load(object sender, EventArgs e) {
+            CreateInitialBoard(ref m_board);
+            // Sample pieces on board - temporary.
+            m_board.cells[4, 3] = PieceType.Rook | PieceColor.White;
+            m_board.cells[2, 3] = PieceType.Bishop | PieceColor.White;
+            m_board.cells[5, 3] = PieceType.Knight | PieceColor.White;
+            m_board.cells[5, 5] = PieceType.Knight | PieceColor.Black;
         }
 
         private void ChessR1Form_Paint(object sender, PaintEventArgs e) {
@@ -409,32 +459,103 @@ namespace ChessR1
             //e.Graphics.DrawString("♔♕♖♗♘♙ ♚♛♜♝♞♟", fontPieces, brushBlack,
             //    (float)(offsetLeft + 0.15 * squareSize), (float)(offsetTop + 6.15 * squareSize));
 
-            CreateInitialBoard(ref m_board);
-            // Sample pieces on board - temporary.
-            m_board.cells[4, 3] = PieceType.Rook | PieceColor.White;
-            m_board.cells[2, 3] = PieceType.Bishop | PieceColor.White;
-            m_board.cells[5, 3] = PieceType.Knight | PieceColor.White;
-            m_board.cells[5, 5] = PieceType.Knight | PieceColor.Black;
             DrawBoard(e.Graphics, ref m_board);
         }
 
         private void ChessR1Form_MouseDown(object sender, MouseEventArgs e) {
-            selectedColStart = NOT_SELECTED;
+            //DebugOut("In MouseDown");
+            bool bWithinASquare = false;
+            int prevCol = selectedColStart;
+            int prevRow = selectedRowStart;
+            int curCol = NOT_SELECTED;
+            int curRow = NOT_SELECTED;
+            bool bASquareWasAlreadySelected = (NOT_SELECTED != prevCol);
+
+            // If both a start and stop square are still defined, clear all.
+            if (NOT_SELECTED != selectedColStart && NOT_SELECTED != selectedColStop) {
+                selectedRowStart = NOT_SELECTED;
+                selectedColStart = NOT_SELECTED;
+                selectedRowStop = NOT_SELECTED;
+                selectedColStop = NOT_SELECTED;
+                m_nValidMoves = 0;
+            }
             // Implicit conversion from Point to PointF.
             PointF pointMouse = e.Location;
             if (pointMouse.X >= offsetLeft && pointMouse.X < offsetLeft + NUMCOLS * squareSize) {
                 if (pointMouse.Y > offsetTop && pointMouse.Y < offsetTop + NUMROWS * squareSize) {
-                    selectedColStart = (int)((pointMouse.X - offsetLeft) / squareSize);
-                    selectedRowStart = (int)((pointMouse.Y - offsetTop) / squareSize);
-                    m_nValidMoves = ComputeLegalMovesForPiece(selectedRowStart, selectedColStart);
-                    //DebugOut($"Selected row {selectedRowStart} col {selectedColStart}");
+                    curCol = (int)((pointMouse.X - offsetLeft) / squareSize);
+                    curRow = (int)((pointMouse.Y - offsetTop) / squareSize);
+                    if (!bASquareWasAlreadySelected) {
+                        m_nValidMoves = ComputeLegalMovesForPiece(curRow, curCol);
+                    }
+                    bWithinASquare = true;
                 }
             }
+
+            if (bWithinASquare) {
+                if (bASquareWasAlreadySelected) {
+                    // We have selected a square, and there was a square already selected.
+                    // Is the new square different than the old?
+                    if (prevCol != curCol || prevRow != curRow) {
+                        // Yes, they are different, so it means the player is trying
+                        // to move there.  Is this a legal place to move that piece?
+                        int desiredLoc = CalcByteFromRowAndCol(curRow, curCol);
+                        bool bDidMove = false;
+                        for (int j = 0; j < m_nValidMoves; j++) {
+                            if (m_ValidMoves[j] == desiredLoc) {
+                                // Yes, it's legal to move this piece here, so move it.
+                                byte pieceBeingMoved = m_board.cells[selectedRowStart, selectedColStart];
+                                //DebugOut($"We will move {pieceBeingMoved} from row {selectedRowStart} col {selectedColStart} to row {curRow} col {curCol}");
+                                m_board.cells[curRow, curCol] = pieceBeingMoved;
+                                m_board.cells[selectedRowStart, selectedColStart] = 0;
+                                selectedRowStop = curRow;
+                                selectedColStop = curCol;
+                                // Now that the piece has moved, erase its previous legal moves.
+                                m_nValidMoves = 0;
+                                bDidMove = true;
+                                //DebugOut($"MouseDown: board is now\r\n{ComputeTextualBoard()}");
+                                break;
+                            } else {
+                                //DebugOut($"Can't move: desired={desiredLoc} m_ValidMoves[j]={m_ValidMoves[j]}");
+                            }
+                        }
+                        if (!bDidMove) {
+                            // A square had already been selected, and the user chose a different one.
+                            // But it was not a legal destination.
+                            // This means that the user changed their mind and selected a different piece.
+                            selectedRowStart = curRow;
+                            selectedColStart = curCol;
+                            selectedRowStop = NOT_SELECTED;
+                            selectedColStop = NOT_SELECTED;
+                            m_nValidMoves = ComputeLegalMovesForPiece(curRow, curCol);
+                        }
+                    } else {
+                        // It's the same square.
+                        selectedRowStop = NOT_SELECTED;
+                        selectedColStop = NOT_SELECTED;
+                    }
+                } else {
+                    // No square had already been selected.
+                    selectedRowStart = curRow;
+                    selectedColStart = curCol;
+                    selectedRowStop = NOT_SELECTED;
+                    selectedColStop = NOT_SELECTED;
+                    m_nValidMoves = ComputeLegalMovesForPiece(curRow, curCol);
+                }
+            } else {
+                selectedRowStart = NOT_SELECTED;
+                selectedColStart = NOT_SELECTED;
+                selectedRowStop = NOT_SELECTED;
+                selectedColStop = NOT_SELECTED;
+                m_nValidMoves = 0;
+            }
+
             //if (NOT_SELECTED == selectedColStart) {
             //    DebugOut("Click detected off the board");
             //}
 
             Invalidate();
+            //DebugOut($"MouseDown end: board is now\r\n{ComputeTextualBoard()}");
         }
     }
 }

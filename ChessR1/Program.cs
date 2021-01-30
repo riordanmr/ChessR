@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -21,6 +22,7 @@ namespace ChessR1
 
     public class Board
     {
+        // cells is indexed by row (0-7), col (0-7)
         public byte[,] cells = new byte[8, 8];
     };
 
