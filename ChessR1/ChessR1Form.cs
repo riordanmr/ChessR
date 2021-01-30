@@ -47,6 +47,7 @@ namespace ChessR1
         byte[] m_ValidMoves = new byte[64];
         int m_nValidMoves;
         bool bWhiteOnBottom = true;
+        static int [] aryKnightMoves = {-2, -1, 1, 2};
 
 
         public ChessR1Form() {
@@ -217,12 +218,15 @@ namespace ChessR1
         }
 
         void DrawBoard(Graphics g, ref Board board) {
-            DebugOut("DrawBoard here");
             DrawTextualBoard();
             DrawSquares(g);
             DrawCoordinates(g);
             DrawPieces(g, ref board);
             DrawHighlights(g);
+        }
+
+        bool IsLegalSquare(int irow, int icol) {
+            return (irow >= 0 && irow < NUMROWS) && (icol >= 0 && icol < NUMCOLS);
         }
 
         int ComputeLegalMovesForPawn(int irow, int icol, ref byte[] aryValidMoves) {
@@ -279,6 +283,44 @@ namespace ChessR1
                     if (icol < NUMCOLS - 1) {
                         if (0 != m_board.cells[irow + 1, icol + 1] && ColorOfCell(m_board.cells[irow + 1, icol + 1]) != myColor) {
                             aryValidMoves[nMoves++] = CalcByteFromRowAndCol(irow + 1, icol + 1);
+                        }
+                    }
+                }
+            }
+
+            return nMoves;
+        }
+
+        int ComputeLegalMovesForKnight(int irow, int icol, ref byte[] aryValidMoves) {
+            int nMoves = 0;
+            //int ir, ic;
+            int piece = m_board.cells[irow, icol];
+            int myColor = piece & PieceColor.Mask;
+
+            foreach (int ir in aryKnightMoves) {
+                foreach (int ic in aryKnightMoves) {
+                    // A knight moves 2 squares in one direction, and 1 in the other.
+                    // Our loops cover too many possibilities, so we skip processing
+                    // if the number of squares in the two directions are equal.
+                    if (Math.Abs(ic) == Math.Abs(ir)) continue;
+                    int newRow = irow + ir;
+                    int newCol = icol + ic;
+                    if (IsLegalSquare(newRow, newCol)) {
+                        int otherPiece = m_board.cells[newRow, newCol];
+                        int otherColor = otherPiece & PieceColor.Mask;
+                        otherPiece &= PieceType.Mask;
+                        bool bMoveOK = false;
+                        if (0 == otherPiece) {
+                            // Empty square
+                            bMoveOK = true;
+                        } else if (otherColor != myColor) {
+                            // This would be a capture of an enemy piece.
+                            // MRRToDo: check for discovered check, stalemate, etc.
+                            bMoveOK = true;
+                        }
+                        //DebugOut($"Knight at ({irow},{icol}) to move to ({newRow},{newCol}): myColor={myColor} otherColor={otherColor} bMoveOK={bMoveOK}");
+                        if (bMoveOK) {
+                            aryValidMoves[nMoves++] = CalcByteFromRowAndCol(newRow, newCol);
                         }
                     }
                 }
@@ -381,6 +423,9 @@ namespace ChessR1
                     break;
                 case PieceType.Pawn:
                     nMoves = ComputeLegalMovesForPawn(irow, icol, ref m_ValidMoves);
+                    break;
+                case PieceType.Knight:
+                    nMoves = ComputeLegalMovesForKnight(irow, icol, ref m_ValidMoves);
                     break;
             }
             return nMoves;
