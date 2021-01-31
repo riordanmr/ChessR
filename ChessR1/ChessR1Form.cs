@@ -30,7 +30,7 @@ namespace ChessR1
         Pen penSelectedStop = new Pen(Color.Tomato, 2.0F);
         Pen penLegalMoves = new Pen(Color.Plum, 2.0F);
         // I'm using Unicode characters to render the pieces.  
-        // I don't think that all the different fonts each has a unique rendering of 
+        // I don't think that each of the different fonts each has a unique rendering of 
         // the pieces, but I can see that at least Arial and Segoe UI Symbol do.
         // Unfortunately, the center points of the characters differ between those
         // fonts, so you can't just swap in one font for another and have it look good. 
@@ -44,8 +44,10 @@ namespace ChessR1
         int selectedRowStop = NOT_SELECTED, selectedColStop = NOT_SELECTED;
         // Valid moves for the currently-selected piece.  Each byte contains a row and column
         // as encoded by CalcByteFromRowAndCol.
-        byte[] m_ValidMoves = new byte[64];
-        int m_nValidMoves;
+        byte[] m_ValidMovesForOnePiece = new byte[64];
+        int m_nValidMovesForOnePiece;
+        byte[] m_ValidMovesForComputer = new byte[256];
+        int m_nValidMovesForComputer;
         bool bWhiteOnBottom = true;
         static int [] aryKnightMoves = {-2, -1, 1, 2};
 
@@ -162,8 +164,8 @@ namespace ChessR1
 
             // Highlight the squares to which the currently selected piece can move.
             int irow, icol;
-            for (int idx = 0; idx < m_nValidMoves; idx++) {
-                CalcRowAndColFromByte(m_ValidMoves[idx], out irow, out icol);
+            for (int idx = 0; idx < m_nValidMovesForOnePiece; idx++) {
+                CalcRowAndColFromByte(m_ValidMovesForOnePiece[idx], out irow, out icol);
                 float x = (float)(offsetLeft + (icol + 0.05) * squareSize);
                 float y = (float)(offsetTop + (irow + 0.05) * squareSize);
                 float width = (float)(squareSize * 0.9);
@@ -229,9 +231,7 @@ namespace ChessR1
             return (irow >= 0 && irow < NUMROWS) && (icol >= 0 && icol < NUMCOLS);
         }
 
-        int ComputeLegalMovesForPawn(int irow, int icol, ref byte[] aryValidMoves) {
-            int nMoves = 0;
-
+        int ComputeLegalMovesForPawn(int irow, int icol, ref byte[] aryValidMoves, ref int nMoves) {
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
             if (PieceColor.White == myColor && bWhiteOnBottom || PieceColor.Black == myColor && !bWhiteOnBottom) {
@@ -291,9 +291,7 @@ namespace ChessR1
             return nMoves;
         }
 
-        int ComputeLegalMovesForKnight(int irow, int icol, ref byte[] aryValidMoves) {
-            int nMoves = 0;
-            //int ir, ic;
+        void ComputeLegalMovesForKnight(int irow, int icol, ref byte[] aryValidMoves, ref int nMoves) {
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
 
@@ -325,12 +323,9 @@ namespace ChessR1
                     }
                 }
             }
-
-            return nMoves;
         }
 
-        int ComputeLegalMovesForRook(int irow, int icol, ref byte[] aryValidMoves) {
-            int nMoves = 0;
+        void ComputeLegalMovesForRook(int irow, int icol, ref byte[] aryValidMoves, ref int nMoves) {
             int ir, ic;
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
@@ -408,27 +403,23 @@ namespace ChessR1
                     break;
                 }
             }
-
-            return nMoves;
         }
 
 
-        int ComputeLegalMovesForPiece(int irow, int icol) {
+        void  ComputeLegalMovesForPiece(int irow, int icol, ref byte[] aryValidMoves, ref int nMoves) {
             int pieceType = m_board.cells[irow, icol];
             pieceType &= PieceType.Mask;
-            int nMoves = 0;
             switch (pieceType) {
                 case PieceType.Rook:
-                    nMoves = ComputeLegalMovesForRook(irow, icol, ref m_ValidMoves);
+                    ComputeLegalMovesForRook(irow, icol, ref m_ValidMovesForOnePiece, ref nMoves);
                     break;
                 case PieceType.Pawn:
-                    nMoves = ComputeLegalMovesForPawn(irow, icol, ref m_ValidMoves);
+                    ComputeLegalMovesForPawn(irow, icol, ref m_ValidMovesForOnePiece, ref nMoves);
                     break;
                 case PieceType.Knight:
-                    nMoves = ComputeLegalMovesForKnight(irow, icol, ref m_ValidMoves);
+                    ComputeLegalMovesForKnight(irow, icol, ref m_ValidMovesForOnePiece, ref nMoves);
                     break;
             }
-            return nMoves;
         }
 
         void CreateInitialBoard(ref Board board) {
@@ -522,7 +513,7 @@ namespace ChessR1
                 selectedColStart = NOT_SELECTED;
                 selectedRowStop = NOT_SELECTED;
                 selectedColStop = NOT_SELECTED;
-                m_nValidMoves = 0;
+                m_nValidMovesForOnePiece = 0;
             }
             // Implicit conversion from Point to PointF.
             PointF pointMouse = e.Location;
@@ -531,7 +522,7 @@ namespace ChessR1
                     curCol = (int)((pointMouse.X - offsetLeft) / squareSize);
                     curRow = (int)((pointMouse.Y - offsetTop) / squareSize);
                     if (!bASquareWasAlreadySelected) {
-                        m_nValidMoves = ComputeLegalMovesForPiece(curRow, curCol);
+                         ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
                     }
                     bWithinASquare = true;
                 }
@@ -546,8 +537,8 @@ namespace ChessR1
                         // to move there.  Is this a legal place to move that piece?
                         int desiredLoc = CalcByteFromRowAndCol(curRow, curCol);
                         bool bDidMove = false;
-                        for (int j = 0; j < m_nValidMoves; j++) {
-                            if (m_ValidMoves[j] == desiredLoc) {
+                        for (int j = 0; j < m_nValidMovesForOnePiece; j++) {
+                            if (m_ValidMovesForOnePiece[j] == desiredLoc) {
                                 // Yes, it's legal to move this piece here, so move it.
                                 byte pieceBeingMoved = m_board.cells[selectedRowStart, selectedColStart];
                                 //DebugOut($"We will move {pieceBeingMoved} from row {selectedRowStart} col {selectedColStart} to row {curRow} col {curCol}");
@@ -556,7 +547,7 @@ namespace ChessR1
                                 selectedRowStop = curRow;
                                 selectedColStop = curCol;
                                 // Now that the piece has moved, erase its previous legal moves.
-                                m_nValidMoves = 0;
+                                m_nValidMovesForOnePiece = 0;
                                 bDidMove = true;
                                 //DebugOut($"MouseDown: board is now\r\n{ComputeTextualBoard()}");
                                 break;
@@ -572,7 +563,7 @@ namespace ChessR1
                             selectedColStart = curCol;
                             selectedRowStop = NOT_SELECTED;
                             selectedColStop = NOT_SELECTED;
-                            m_nValidMoves = ComputeLegalMovesForPiece(curRow, curCol);
+                            ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
                         }
                     } else {
                         // It's the same square.
@@ -585,14 +576,14 @@ namespace ChessR1
                     selectedColStart = curCol;
                     selectedRowStop = NOT_SELECTED;
                     selectedColStop = NOT_SELECTED;
-                    m_nValidMoves = ComputeLegalMovesForPiece(curRow, curCol);
+                    ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
                 }
             } else {
                 selectedRowStart = NOT_SELECTED;
                 selectedColStart = NOT_SELECTED;
                 selectedRowStop = NOT_SELECTED;
                 selectedColStop = NOT_SELECTED;
-                m_nValidMoves = 0;
+                m_nValidMovesForOnePiece = 0;
             }
 
             //if (NOT_SELECTED == selectedColStart) {
