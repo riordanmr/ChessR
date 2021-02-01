@@ -13,11 +13,29 @@ namespace ChessR1
         public const int King = 1; public const int Queen = 2; public const int Rook = 3;
         public const int Bishop = 4; public const int Knight = 5; public const int Pawn = 6;
         public const int Mask = 7;
+        static string[] aryNames = { "Empty", "King", "Queen", "Rook", "Bishop", "Knight", "Pawn" };
+        public static string ToString(int pieceType) {
+            if (pieceType >= 0 && pieceType <= Pawn) {
+                return aryNames[pieceType];
+            } else {
+                return "Bad";
+            }
+        }
     };
+
     public class PieceColor
     {
         public const int White = 0; public const int Black = 8;
         public const int Mask = 8;
+        public static string ToString(int color) {
+            if (White == color) {
+                return "White";
+            } else if (Black == color) {
+                return "Black";
+            } else {
+                return "Unknown";
+            }
+        }
     };
 
     public class Board
