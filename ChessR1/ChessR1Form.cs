@@ -77,7 +77,7 @@ namespace ChessR1
         // Create an integer which encodes a move.
         int EncodeMoveFromRowsAndCols(int irowStart, int icolStart, int irowStop, int icolStop) {
             int encodedMove = (EncodePositionFromRowAndCol(irowStart, icolStart) << 6) | EncodePositionFromRowAndCol(irowStop, icolStop);
-            // DebugOut($"EncodeMoveFromRowsAndCols: from ({irowStart},{icolStart}) to ({irowStop}, {icolStop}) encoded as {encodedMove} or {Convert.ToString(encodedMove, 8)} octal");
+            //DebugOut($"EncodeMoveFromRowsAndCols: from ({irowStart},{icolStart}) to ({irowStop}, {icolStop}) encoded as {encodedMove} or {Convert.ToString(encodedMove, 8)} octal");
             return encodedMove;
         }
 
@@ -424,7 +424,91 @@ namespace ChessR1
             }
         }
 
+        void ComputeLegalMovesForBishop(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
+            int ir, ic;
+            int piece = m_board.cells[irow, icol];
+            int myColor = piece & PieceColor.Mask;
+            int otherColor, otherPiece;
+            // Starting at square the bishop is on, look diagonally away from the bishop
+            // in each of the four directions.
+            // First, look to the up and to the left.
+            for (ic = icol - 1, ir = irow - 1; ic >= 0 && ir >= 0; ic--, ir--) {
+                otherPiece = m_board.cells[ir, ic];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                    break;
+                }
+            }
+
+            // Look up and to the right.
+            for (ic = icol - 1, ir = irow + 1; ic >= 0 && ir < NUMROWS; ic--, ir++) {
+                otherPiece = m_board.cells[ir, ic];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                    break;
+                }
+            }
+
+            // Look down and to the left.
+            for (ic = icol + 1, ir = irow - 1; ic < NUMCOLS && ir >= 0; ic++, ir--) {
+                otherPiece = m_board.cells[ir, ic];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                    break;
+                }
+            }
+
+            // Look down and to the right.
+            for (ic = icol + 1, ir = irow + 1; ic < NUMCOLS && ir < NUMROWS; ic++, ir++) {
+                otherPiece = m_board.cells[ir, ic];
+                otherColor = otherPiece & PieceColor.Mask;
+                otherPiece &= PieceType.Mask;
+
+                if (0 == otherPiece) {
+                    // Empty square; OK
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                } else if (myColor == otherColor) {
+                    // We have gotten to one of our own pieces.  We can't go further in this direction.
+                    break;
+                } else {
+                    // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
+                    aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                    break;
+                }
+            }
+        }
+
         void ComputeLegalMovesForPiece(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
+            nMoves = 0;
             int pieceType = m_board.cells[irow, icol];
             pieceType &= PieceType.Mask;
             switch (pieceType) {
@@ -436,6 +520,13 @@ namespace ChessR1
                     break;
                 case PieceType.Knight:
                     ComputeLegalMovesForKnight(irow, icol, ref aryValidMoves, ref nMoves);
+                    break;
+                case PieceType.Bishop:
+                    ComputeLegalMovesForBishop(irow, icol, ref aryValidMoves, ref nMoves);
+                    break;
+                case PieceType.Queen:
+                    ComputeLegalMovesForRook(irow, icol, ref aryValidMoves, ref nMoves);
+                    ComputeLegalMovesForBishop(irow, icol, ref aryValidMoves, ref nMoves);
                     break;
             }
         }
@@ -514,7 +605,7 @@ namespace ChessR1
             CreateInitialBoard(ref m_board);
             // Sample pieces on board - temporary.
             //m_board.cells[4, 3] = PieceType.Rook | PieceColor.White;
-            //m_board.cells[2, 3] = PieceType.Bishop | PieceColor.White;
+            m_board.cells[2, 3] = PieceType.Bishop | PieceColor.White;
             //m_board.cells[5, 3] = PieceType.Knight | PieceColor.White;
             //m_board.cells[5, 5] = PieceType.Knight | PieceColor.Black;
         }
