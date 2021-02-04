@@ -507,6 +507,36 @@ namespace ChessR1
             }
         }
 
+        void ComputeLegalMovesForKing(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
+            int ir, ic;
+            int piece = m_board.cells[irow, icol];
+            int myColor = piece & PieceColor.Mask;
+            int otherColor, otherPiece;
+            // Consider all ways in which the king could move 0 or 1 squares horizontally and vertically,
+            // except the case of not moving at all.
+            for (int deltacol = -1; deltacol <= 1; deltacol++) {
+                ic = icol + deltacol;
+                // Don't move off the board.
+                if (ic < 0 || ic >= NUMCOLS) continue;
+                for (int deltarow = -1; deltarow <= 1; deltarow++) {
+                    ir = irow + deltarow;
+                    // Don't move off the board.
+                    if (ir < 0 || ir >= NUMROWS) continue;
+                    // We mustn't stay in one place to be a move.
+                    if (deltacol == 0 && deltarow == 0) continue;
+
+                    otherPiece = m_board.cells[ir, ic];
+                    otherColor = otherPiece & PieceColor.Mask;
+                    otherPiece &= PieceType.Mask;
+                    if (0 == otherPiece || myColor != otherColor) {
+                        // Empty square or capturing other piece.  
+                        //mrr this really needs fleshing out because the king can't capture a defended piece.
+                        aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                    }
+                }
+            }
+         }
+
         void ComputeLegalMovesForPiece(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
             nMoves = 0;
             int pieceType = m_board.cells[irow, icol];
@@ -527,6 +557,9 @@ namespace ChessR1
                 case PieceType.Queen:
                     ComputeLegalMovesForRook(irow, icol, ref aryValidMoves, ref nMoves);
                     ComputeLegalMovesForBishop(irow, icol, ref aryValidMoves, ref nMoves);
+                    break;
+                case PieceType.King:
+                    ComputeLegalMovesForKing(irow, icol, ref aryValidMoves, ref nMoves);
                     break;
             }
         }
@@ -605,7 +638,7 @@ namespace ChessR1
             CreateInitialBoard(ref m_board);
             // Sample pieces on board - temporary.
             //m_board.cells[4, 3] = PieceType.Rook | PieceColor.White;
-            m_board.cells[2, 3] = PieceType.Bishop | PieceColor.White;
+            //m_board.cells[2, 3] = PieceType.Bishop | PieceColor.White;
             //m_board.cells[5, 3] = PieceType.Knight | PieceColor.White;
             //m_board.cells[5, 5] = PieceType.Knight | PieceColor.Black;
         }
