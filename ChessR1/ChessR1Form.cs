@@ -27,8 +27,10 @@ namespace ChessR1
         float thickness;
         System.Drawing.Pen penBlack;
         readonly Pen penSelectedStart = new Pen(Color.MediumSpringGreen, 2.0F);
-        readonly Pen penSelectedStop = new Pen(Color.Tomato, 2.0F);
+        readonly Pen penSelectedStop = new Pen(Color.Salmon, 2.0F); // Color.Tomato
         readonly Pen penLegalMoves = new Pen(Color.Plum, 2.0F);
+        //readonly Pen penAttackedFrom = new Pen(Color.OrangeRed, 2.0F);
+
         // I'm using Unicode characters to render the pieces.  
         // I don't think that each of the different fonts each has a unique rendering of 
         // the pieces, but I can see that at least Arial and Segoe UI Symbol do.
@@ -235,11 +237,11 @@ namespace ChessR1
         }
 
         void DrawTextualBoard() {
-            textBoxBoard.Text = ComputeTextualBoard();
+            //textBoxBoard.Text = ComputeTextualBoard();
         }
 
         void DrawBoard(Graphics g, ref Board board) {
-            DrawTextualBoard();
+            //DrawTextualBoard();
             DrawSquares(g);
             DrawCoordinates(g);
             DrawPieces(g, ref board);
@@ -248,6 +250,104 @@ namespace ChessR1
 
         bool IsLegalSquare(int irow, int icol) {
             return (irow >= 0 && irow < NUMROWS) && (icol >= 0 && icol < NUMCOLS);
+        }
+
+
+        bool IsSquareAttacked(ref Board board, int irow, int icol) {
+            bool bIsAttacked = false;
+            int piece = board.cells[irow, icol];
+            int myColor = piece & PieceColor.Mask;
+            int pieceType = piece & PieceType.Mask;
+
+            // First check for knights.
+            foreach (int ir2 in aryKnightMoves) {
+                foreach (int ic2 in aryKnightMoves) {
+                    // A knight moves 2 squares in one direction, and 1 in the other.
+                    // Our loops cover too many possibilities, so we skip processing
+                    // if the number of squares in the two directions are equal.
+                    if (Math.Abs(ic2) == Math.Abs(ir2)) continue;
+                    int newRow = irow + ir2;
+                    int newCol = icol + ic2;
+                    if (IsLegalSquare(newRow, newCol)) {
+                        int otherPiece = m_board.cells[newRow, newCol];
+                        int otherColor = otherPiece & PieceColor.Mask;
+                        otherPiece &= PieceType.Mask;
+                        if (otherPiece == PieceType.Knight && otherColor != myColor) {
+                            // An enemy knight is attacking our square.
+                            bIsAttacked = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Now look for various pieces in straight lines.
+            // Start with horizontal, to the left.
+            int ir, ic;
+            for (ir = irow - 1, ic = icol; ir >= 0; ir--) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece || PieceType.King == otherPiece) {
+                            bIsAttacked = true;
+                            break;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                    }
+                }
+            }
+
+            // Now for horizontal to the right.
+            for (ir = irow + 1, ic = icol; ir <= NUMROWS; ir++) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece || PieceType.King == otherPiece) {
+                            bIsAttacked = true;
+                            break;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                    }
+                }
+            }
+
+            return bIsAttacked;
+        }
+
+        bool KingIsUnderAttack(ref Board board, int color) {
+            bool bIsAttacked = false;
+            int irow, icol=0;
+            // Locate the king.
+            int pieceLookingFor = PieceType.King | color;
+            bool bFound = false;
+            for (irow = 0; irow < NUMROWS; irow++) {
+                for (icol = 0; icol < NUMCOLS; icol++) {
+                    if (pieceLookingFor == (board.cells[irow, icol] & (PieceType.Mask | PieceColor.Mask))) {
+                        bFound = true;
+                        break;
+                    }
+                }
+            }
+            if (!bFound) {
+                DebugOut($"** Error: cannot find {PieceColor.ToString(color)} {PieceType.ToString(PieceType.King)}");
+            }
+
+            bIsAttacked = IsSquareAttacked(ref board, irow, icol);
+            return bIsAttacked;
         }
 
         int ComputeLegalMovesForPawn(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
@@ -685,14 +785,48 @@ namespace ChessR1
             DrawBoard(e.Graphics, ref m_board);
         }
 
+        private void MouseRightClickEvent(object sender, MouseEventArgs e, int curRow, int curCol) {
+            FormChoosePiece form = new FormChoosePiece();
+            form.ShowDialog();
+            // When we get here, the user has closed the dialog to choose a piece.
+            if (form.PlaceAction == PlacePieceAction.ACTION_PLACE_PIECE) {
+                m_board.cells[curRow, curCol] = (byte)(form.PlacePiece | form.PlaceColor);
+            } else if (form.PlaceAction == PlacePieceAction.ACTION_EMPTY) {
+                m_board.cells[curRow, curCol] = 0;
+            }
+            Invalidate();
+        }
+
         private void ChessR1Form_MouseDown(object sender, MouseEventArgs e) {
-            //DebugOut("In MouseDown");
             bool bWithinASquare = false;
             int prevCol = selectedColStart;
             int prevRow = selectedRowStart;
             int curCol = NOT_SELECTED;
             int curRow = NOT_SELECTED;
             bool bASquareWasAlreadySelected = (NOT_SELECTED != prevCol);
+
+            // Implicit conversion from Point to PointF.
+            PointF pointMouse = e.Location;
+            if (pointMouse.X >= offsetLeft && pointMouse.X < offsetLeft + NUMCOLS * squareSize) {
+                if (pointMouse.Y > offsetTop && pointMouse.Y < offsetTop + NUMROWS * squareSize) {
+                    curCol = (int)((pointMouse.X - offsetLeft) / squareSize);
+                    curRow = (int)((pointMouse.Y - offsetTop) / squareSize);
+                    bWithinASquare = true;
+                }
+            }
+
+            if (e.Button == MouseButtons.Right) {
+                if (bWithinASquare) {
+                    MouseRightClickEvent(sender, e, curRow, curCol);
+                }
+                return;
+            }
+
+            if (bWithinASquare) {
+                if (!bASquareWasAlreadySelected) {
+                    ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
+                }
+            }
 
             // If both a start and stop square are still defined, clear all.
             if (NOT_SELECTED != selectedColStart && NOT_SELECTED != selectedColStop) {
@@ -702,18 +836,7 @@ namespace ChessR1
                 selectedColStop = NOT_SELECTED;
                 m_nValidMovesForOnePiece = 0;
             }
-            // Implicit conversion from Point to PointF.
-            PointF pointMouse = e.Location;
-            if (pointMouse.X >= offsetLeft && pointMouse.X < offsetLeft + NUMCOLS * squareSize) {
-                if (pointMouse.Y > offsetTop && pointMouse.Y < offsetTop + NUMROWS * squareSize) {
-                    curCol = (int)((pointMouse.X - offsetLeft) / squareSize);
-                    curRow = (int)((pointMouse.Y - offsetTop) / squareSize);
-                    if (!bASquareWasAlreadySelected) {
-                         ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
-                    }
-                    bWithinASquare = true;
-                }
-            }
+
 
             if (bWithinASquare) {
                 if (bASquareWasAlreadySelected) {
