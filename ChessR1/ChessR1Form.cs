@@ -252,6 +252,29 @@ namespace ChessR1
             return (irow >= 0 && irow < NUMROWS) && (icol >= 0 && icol < NUMCOLS);
         }
 
+        /// <summary>
+        /// Move a piece.
+        /// </summary>
+        /// <param name="board">The copy of the board on which to do the move.</param>
+        /// <param name="irowStart">The row of the starting square.</param>
+        /// <param name="icolStart">The column of the starting square.</param>
+        /// <param name="irowStop">The row of the ending square.</param>
+        /// <param name="icolStop">The column of the ending square.</param>
+        /// <param name="bDisplay">true if we should display this move on the screen.</param>
+        void MovePiece(ref Board board, int irowStart, int icolStart, int irowStop, int icolStop, bool bDisplay) {
+            int piece = board.cells[irowStart, icolStart];
+            int oldpiece = board.cells[irowStop, icolStop];
+            board.cells[irowStop, icolStop] = (byte)piece;
+            board.cells[irowStart, icolStart] = 0;
+
+            if (bDisplay) {
+                // This causes the move to be displayed on the board.
+                selectedRowStart = irowStart;
+                selectedColStart = icolStart;
+                selectedRowStop = irowStop;
+                selectedColStop = icolStop;
+            }
+        }
 
         bool IsSquareAttacked(ref Board board, int irow, int icol) {
             bool bIsAttacked = false;
@@ -282,9 +305,10 @@ namespace ChessR1
             }
 
             // Now look for various pieces in straight lines.
-            // Start with horizontal, to the left.
+            // Start with vertical, up.
             int ir, ic;
-            for (ir = irow - 1, ic = icol; ir >= 0; ir--) {
+            bool bFirstSquare = true;
+            for (ir = irow - 1, ic = icol; ir >= 0; ir--, bFirstSquare = false) {
                 int otherPiece = board.cells[ir, ic];
                 if (0 != otherPiece) {
                     int otherColor = otherPiece & PieceColor.Mask;
@@ -294,18 +318,19 @@ namespace ChessR1
                     } else {
                         // It's an opponent's piece.  Is it a threat?
                         otherPiece &= PieceType.Mask;
-                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece || PieceType.King == otherPiece) {
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece 
+                            || (PieceType.King == otherPiece && bFirstSquare)) {
                             bIsAttacked = true;
-                            break;
                         } else {
                             // This opponent's piece is blocking his other pieces from attacking us.
                         }
+                        break;
                     }
                 }
             }
 
-            // Now for horizontal to the right.
-            for (ir = irow + 1, ic = icol; ir <= NUMROWS; ir++) {
+            // Now for vertical, down.
+            for (ir = irow + 1, ic = icol, bFirstSquare=true; ir <= NUMROWS; ir++, bFirstSquare=false) {
                 int otherPiece = board.cells[ir, ic];
                 if (0 != otherPiece) {
                     int otherColor = otherPiece & PieceColor.Mask;
@@ -315,12 +340,57 @@ namespace ChessR1
                     } else {
                         // It's an opponent's piece.  Is it a threat?
                         otherPiece &= PieceType.Mask;
-                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece || PieceType.King == otherPiece) {
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece || 
+                            (PieceType.King == otherPiece && bFirstSquare)) {
                             bIsAttacked = true;
-                            break;
                         } else {
                             // This opponent's piece is blocking his other pieces from attacking us.
                         }
+                        break;
+                    }
+                }
+            }
+
+            // Now for horizonal, right.
+            for (ir = irow, ic = icol+1, bFirstSquare = true; ic < NUMCOLS; ic++, bFirstSquare = false) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece ||
+                            (PieceType.King == otherPiece && bFirstSquare)) {
+                            bIsAttacked = true;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Now for horizonal, left.
+            for (ir = irow, ic = icol - 1, bFirstSquare = true; ic >= 0; ic--, bFirstSquare = false) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece ||
+                            (PieceType.King == otherPiece && bFirstSquare)) {
+                            bIsAttacked = true;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                        break;
                     }
                 }
             }
@@ -329,25 +399,66 @@ namespace ChessR1
         }
 
         bool KingIsUnderAttack(ref Board board, int color) {
-            bool bIsAttacked = false;
-            int irow, icol=0;
+            int irow, icol=0, irowKing = -1, icolKing = -1;
             // Locate the king.
             int pieceLookingFor = PieceType.King | color;
             bool bFound = false;
-            for (irow = 0; irow < NUMROWS; irow++) {
+            for (irow = 0; irow < NUMROWS && !bFound; irow++) {
                 for (icol = 0; icol < NUMCOLS; icol++) {
                     if (pieceLookingFor == (board.cells[irow, icol] & (PieceType.Mask | PieceColor.Mask))) {
                         bFound = true;
+                        irowKing = irow;
+                        icolKing = icol;
                         break;
                     }
                 }
             }
             if (!bFound) {
                 DebugOut($"** Error: cannot find {PieceColor.ToString(color)} {PieceType.ToString(PieceType.King)}");
+            } else {
+                DebugOut($"KingIsUnderAttack: found king at ({irowKing},{icolKing})");
             }
 
-            bIsAttacked = IsSquareAttacked(ref board, irow, icol);
+            if (irowKing == 4 && icolKing == 3) {
+                DebugOut("Yes, found king at 4,3");
+                if (Environment.TickCount == 234) {
+                    Application.Exit();
+                }
+            }
+            bool bIsAttacked = IsSquareAttacked(ref board, irowKing, icolKing);
             return bIsAttacked;
+        }
+
+        /// <summary>
+        /// Add a move to a list of possible moves if the move is legal
+        /// </summary>
+        /// <param name="board">The copy of the board on which to do the move</param>
+        /// <param name="myColor">The color of the piece being moved</param>
+        /// <param name="irowStart">The starting row of the piece to move</param>
+        /// <param name="icolStart">The starting colum of the piece to move</param>
+        /// <param name="irowStop">The ending row of the piece to move</param>
+        /// <param name="icolStop">The ending column of the piece to move</param>
+        /// <param name="aryValidMoves">The array of possible moves to which we will add</param>
+        /// <param name="nMoves">The number of active entries in aryValidMoves.  It may 
+        /// have been incremented by the time we return.</param>
+        void AddMoveIfKingNotUnderAttack(ref Board board, int myColor,
+            int irowStart, int icolStart, int irowStop, int icolStop, 
+            ref int[] aryValidMoves, ref int nMoves) {
+            // Save the from and to squares.
+            byte savedStart = board.cells[irowStart, icolStart];
+            byte savedStop = board.cells[irowStop, icolStop];
+
+            // Tentatively move the piece.
+            MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
+            if (!KingIsUnderAttack(ref board, myColor)) {
+                aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irowStart, icolStart, irowStop, icolStop);
+                DebugOut($"Valid move from ({irowStart},{icolStart}) to ({irowStop},{icolStop})");
+            } else {
+                DebugOut($"Rejected move from ({irowStart},{icolStart}) to ({irowStop},{icolStop}) due to King in check");
+            }
+            // Undo the tentative move - we don't really want to change the board.
+            board.cells[irowStart, icolStart] = savedStart;
+            board.cells[irowStop, icolStop] = savedStop;
         }
 
         int ComputeLegalMovesForPawn(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
@@ -622,7 +733,7 @@ namespace ChessR1
                     ir = irow + deltarow;
                     // Don't move off the board.
                     if (ir < 0 || ir >= NUMROWS) continue;
-                    // We mustn't stay in one place to be a move.
+                    // We mustn't stay in one place.
                     if (deltacol == 0 && deltarow == 0) continue;
 
                     otherPiece = m_board.cells[ir, ic];
@@ -630,8 +741,7 @@ namespace ChessR1
                     otherPiece &= PieceType.Mask;
                     if (0 == otherPiece || myColor != otherColor) {
                         // Empty square or capturing other piece.  
-                        //mrr this really needs fleshing out because the king can't capture a defended piece.
-                        aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irow, icol, ir, ic);
+                        AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
                     }
                 }
             }
@@ -680,33 +790,19 @@ namespace ChessR1
         }
 
         void ChooseMoveForComputer(ref Board board, ref int[] aryValidMoves, int nValidMoves) {
-            //for (int imove = 0; imove < m_nValidMovesForComputer; imove++) {
-            //}
-            // For now, choose a piece at random.
-            int idxMove = m_random.Next(nValidMoves);
-            int move = aryValidMoves[idxMove];
-            //DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
-            int irowStart, icolStart, irowStop, icolStop;
-            DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
-            int piece = board.cells[irowStart, icolStart];
-            int color = piece & PieceColor.Mask;
-            int pieceType = piece & PieceType.Mask;
-            DebugOut($"Computer will move {PieceColor.ToString(color)} {PieceType.ToString(pieceType)} from ({irowStart},{icolStart}) to ({irowStop},{icolStop})");
-            MovePiece(ref board, irowStart, icolStart, irowStop, icolStop);
-        }
-
-        void MovePiece(ref Board board, int irowStart, int icolStart, int irowStop, int icolStop) {
-            int piece = board.cells[irowStart, icolStart];
-            int oldpiece = board.cells[irowStop, icolStop];
-            board.cells[irowStop, icolStop] = (byte)piece;
-            board.cells[irowStart, icolStart] = 0;
-
-            // This causes the move to be displayed on the board.
-            // Should I make this optional?
-            selectedRowStart = irowStart;
-            selectedColStart = icolStart;
-            selectedRowStop = irowStop;
-            selectedColStop = icolStop;
+            if (nValidMoves > 0) {
+                // For now, choose a piece at random.
+                int idxMove = m_random.Next(nValidMoves);
+                int move = aryValidMoves[idxMove];
+                //DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
+                int irowStart, icolStart, irowStop, icolStop;
+                DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+                int piece = board.cells[irowStart, icolStart];
+                int color = piece & PieceColor.Mask;
+                int pieceType = piece & PieceType.Mask;
+                DebugOut($"Computer will move {PieceColor.ToString(color)} {PieceType.ToString(pieceType)} from ({irowStart},{icolStart}) to ({irowStop},{icolStop})");
+                MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, true);
+            }
         }
 
         void CreateInitialBoard(ref Board board) {
@@ -731,6 +827,12 @@ namespace ChessR1
             board.cells[7, 5] = PieceColor.White | PieceType.Bishop;
             board.cells[7, 6] = PieceColor.White | PieceType.Knight;
             board.cells[7, 7] = PieceColor.White | PieceType.Rook;
+
+            // Temporary extra pieces
+            board.cells[2, 1] = PieceColor.Black | PieceType.Rook;
+            board.cells[3, 2] = PieceColor.White | PieceType.King;
+            board.cells[3, 4] = PieceColor.Black | PieceType.King;
+            board.cells[5, 2] = PieceColor.Black | PieceType.King;
         }
 
         private void ChessR1Form_Load(object sender, EventArgs e) {
@@ -837,7 +939,6 @@ namespace ChessR1
                 m_nValidMovesForOnePiece = 0;
             }
 
-
             if (bWithinASquare) {
                 if (bASquareWasAlreadySelected) {
                     // We have selected a square, and there was a square already selected.
@@ -854,7 +955,7 @@ namespace ChessR1
                                 ////DebugOut($"We will move {pieceBeingMoved} from row {selectedRowStart} col {selectedColStart} to row {curRow} col {curCol}");
                                 //m_board.cells[curRow, curCol] = pieceBeingMoved;
                                 //m_board.cells[selectedRowStart, selectedColStart] = 0;
-                                MovePiece(ref m_board, selectedRowStart, selectedColStart, curRow, curCol);
+                                MovePiece(ref m_board, selectedRowStart, selectedColStart, curRow, curCol, true);
 
                                 selectedRowStop = curRow;
                                 selectedColStop = curCol;
@@ -878,6 +979,7 @@ namespace ChessR1
                             selectedColStart = curCol;
                             selectedRowStop = NOT_SELECTED;
                             selectedColStop = NOT_SELECTED;
+                            m_nValidMovesForOnePiece = 0;
                             ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
                         }
                     } else {
