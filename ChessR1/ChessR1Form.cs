@@ -281,6 +281,9 @@ namespace ChessR1
             int piece = board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
             int pieceType = piece & PieceType.Mask;
+            if (irow == 4 && icol == 3) {
+                DebugOut($"IsSquareAttacked: ({irow},{icol})");
+            }
 
             // First check for knights.
             foreach (int ir2 in aryKnightMoves) {
@@ -330,7 +333,7 @@ namespace ChessR1
             }
 
             // Now for vertical, down.
-            for (ir = irow + 1, ic = icol, bFirstSquare=true; ir <= NUMROWS; ir++, bFirstSquare=false) {
+            for (ir = irow + 1, ic = icol, bFirstSquare=true; ir < NUMROWS; ir++, bFirstSquare=false) {
                 int otherPiece = board.cells[ir, ic];
                 if (0 != otherPiece) {
                     int otherColor = otherPiece & PieceColor.Mask;
@@ -385,6 +388,98 @@ namespace ChessR1
                         // It's an opponent's piece.  Is it a threat?
                         otherPiece &= PieceType.Mask;
                         if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece ||
+                            (PieceType.King == otherPiece && bFirstSquare)) {
+                            bIsAttacked = true;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Check diagonal up left.
+            for (ir = irow - 1, ic = icol - 1, bFirstSquare = true; ir >= 0 && ic >= 0; ir--, ic--, bFirstSquare = false) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        //mrrtodo fix pawn
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
+                            (PieceType.King == otherPiece && bFirstSquare)) {
+                            bIsAttacked = true;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Check diagonal down right.
+            for (ir = irow + 1, ic = icol + 1, bFirstSquare = true; ir < NUMROWS && ic < NUMCOLS; ir++, ic++, bFirstSquare = false) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        //mrrtodo fix pawn
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
+                            (PieceType.King == otherPiece && bFirstSquare)) {
+                            bIsAttacked = true;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Check diagonal down left.
+            for (ir = irow + 1, ic = icol - 1, bFirstSquare = true; ir < NUMROWS && ic >= 0; ir++, ic--, bFirstSquare = false) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        //mrrtodo fix pawn
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
+                            (PieceType.King == otherPiece && bFirstSquare)) {
+                            bIsAttacked = true;
+                        } else {
+                            // This opponent's piece is blocking his other pieces from attacking us.
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Check diagonal up right.
+            for (ir = irow - 1, ic = icol + 1, bFirstSquare = true; ir >= 0 && ic < NUMCOLS; ir--, ic++, bFirstSquare = false) {
+                int otherPiece = board.cells[ir, ic];
+                if (0 != otherPiece) {
+                    int otherColor = otherPiece & PieceColor.Mask;
+                    if (otherColor == myColor) {
+                        // We run against our own piece, so no threat from this direction.
+                        break;
+                    } else {
+                        // It's an opponent's piece.  Is it a threat?
+                        //mrrtodo fix pawn
+                        otherPiece &= PieceType.Mask;
+                        if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
                             (PieceType.King == otherPiece && bFirstSquare)) {
                             bIsAttacked = true;
                         } else {
@@ -895,6 +990,13 @@ namespace ChessR1
                 m_board.cells[curRow, curCol] = (byte)(form.PlacePiece | form.PlaceColor);
             } else if (form.PlaceAction == PlacePieceAction.ACTION_EMPTY) {
                 m_board.cells[curRow, curCol] = 0;
+            }
+            if (NOT_SELECTED == selectedColStop && NOT_SELECTED != selectedColStart) {
+                // A piece had already been selected, so recalculate its legal moves.
+                m_nValidMovesForOnePiece = 0;
+                ComputeLegalMovesForPiece(selectedRowStart, selectedColStart, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
+                DebugOut($"After modifying board, recalculated {m_nValidMovesForOnePiece} moves for piece at ({selectedRowStart},{selectedColStart})");
+
             }
             Invalidate();
         }
