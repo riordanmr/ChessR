@@ -42,6 +42,7 @@ namespace ChessR1
     {
         // cells is indexed by row (0-7), col (0-7)
         public byte[,] cells = new byte[8, 8];
+        //public bool BlackOnBottom = false;
     };
 
     static class Program

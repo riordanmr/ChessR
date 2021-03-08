@@ -276,6 +276,13 @@ namespace ChessR1
             }
         }
 
+        /// <summary>
+        /// Determine whether a piece on a given square is under attack.
+        /// </summary>
+        /// <param name="board">The board in question</param>
+        /// <param name="irow">The row of the piece (0-7)</param>
+        /// <param name="icol">The column of the piece (0-7)</param>
+        /// <returns>true if that square is being attacked by the other player</returns>
         bool IsSquareAttacked(ref Board board, int irow, int icol) {
             bool bIsAttacked = false;
             int piece = board.cells[irow, icol];
@@ -490,9 +497,46 @@ namespace ChessR1
                 }
             }
 
+            // Check whether a pawn is attacking this square.
+            // Player's side is at bottom of board.
+            // Start with assumption that the piece (maybe) being attacked is the player's. 
+            int directionFromPieceToPawn = -1;
+            if (myColor == m_ComputersColor) {
+                directionFromPieceToPawn = 1;
+            }
+            // The row on which we are checking a pawn is one away from the current row;
+            // the direction has been computed above.
+            int testRow = irow + directionFromPieceToPawn;
+            if (testRow >= 0 && testRow < NUMROWS) {
+                // Now check two columns: to the left and right of the piece.
+                // But make sure we don't go off the board.
+                if (icol > 0) {
+                    int otherPiece = board.cells[testRow, icol - 1];
+                    int otherPieceType = otherPiece & PieceType.Mask;
+                    int otherPieceColor = otherPiece & PieceColor.Mask;
+                    if (otherPieceType == PieceType.Pawn && otherPieceColor != myColor) {
+                        bIsAttacked = true;
+                    }
+                }
+                if (icol < NUMCOLS - 1) {
+                    int otherPiece = board.cells[testRow, icol + 1];
+                    int otherPieceType = otherPiece & PieceType.Mask;
+                    int otherPieceColor = otherPiece & PieceColor.Mask;
+                    if (otherPieceType == PieceType.Pawn && otherPieceColor != myColor) {
+                        bIsAttacked = true;
+                    }
+                }
+            }
+
             return bIsAttacked;
         }
 
+        /// <summary>
+        /// Determine whether a king on a given board is under attack.
+        /// </summary>
+        /// <param name="board">The board in question</param>
+        /// <param name="color">The color of the king we are checking</param>
+        /// <returns>true if the king of that color is under attack</returns>
         bool KingIsUnderAttack(ref Board board, int color) {
             int irow, icol=0, irowKing = -1, icolKing = -1;
             // Locate the king.
@@ -514,6 +558,7 @@ namespace ChessR1
                 DebugOut($"KingIsUnderAttack: found king at ({irowKing},{icolKing})");
             }
 
+            //mrrtodo
             if (irowKing == 4 && icolKing == 3) {
                 DebugOut("Yes, found king at 4,3");
                 if (Environment.TickCount == 234) {
@@ -924,10 +969,10 @@ namespace ChessR1
             board.cells[7, 7] = PieceColor.White | PieceType.Rook;
 
             // Temporary extra pieces
-            board.cells[2, 1] = PieceColor.Black | PieceType.Rook;
-            board.cells[3, 2] = PieceColor.White | PieceType.King;
-            board.cells[3, 4] = PieceColor.Black | PieceType.King;
-            board.cells[5, 2] = PieceColor.Black | PieceType.King;
+            //board.cells[2, 1] = PieceColor.Black | PieceType.Rook;
+            //board.cells[3, 2] = PieceColor.White | PieceType.King;
+            //board.cells[3, 4] = PieceColor.Black | PieceType.King;
+            //board.cells[5, 2] = PieceColor.Black | PieceType.King;
         }
 
         private void ChessR1Form_Load(object sender, EventArgs e) {
