@@ -415,7 +415,6 @@ namespace ChessR1
                         break;
                     } else {
                         // It's an opponent's piece.  Is it a threat?
-                        //mrrtodo fix pawn
                         otherPiece &= PieceType.Mask;
                         if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
                             (PieceType.King == otherPiece && bFirstSquare)) {
@@ -438,7 +437,6 @@ namespace ChessR1
                         break;
                     } else {
                         // It's an opponent's piece.  Is it a threat?
-                        //mrrtodo fix pawn
                         otherPiece &= PieceType.Mask;
                         if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
                             (PieceType.King == otherPiece && bFirstSquare)) {
@@ -461,7 +459,6 @@ namespace ChessR1
                         break;
                     } else {
                         // It's an opponent's piece.  Is it a threat?
-                        //mrrtodo fix pawn
                         otherPiece &= PieceType.Mask;
                         if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
                             (PieceType.King == otherPiece && bFirstSquare)) {
@@ -484,7 +481,6 @@ namespace ChessR1
                         break;
                     } else {
                         // It's an opponent's piece.  Is it a threat?
-                        //mrrtodo fix pawn
                         otherPiece &= PieceType.Mask;
                         if (PieceType.Queen == otherPiece || PieceType.Bishop == otherPiece ||
                             (PieceType.King == otherPiece && bFirstSquare)) {
@@ -558,13 +554,6 @@ namespace ChessR1
                 DebugOut($"KingIsUnderAttack: found king at ({irowKing},{icolKing})");
             }
 
-            //mrrtodo
-            if (irowKing == 4 && icolKing == 3) {
-                DebugOut("Yes, found king at 4,3");
-                if (Environment.TickCount == 234) {
-                    Application.Exit();
-                }
-            }
             bool bIsAttacked = IsSquareAttacked(ref board, irowKing, icolKing);
             return bIsAttacked;
         }
