@@ -134,9 +134,9 @@ namespace ChessR1
             // 
             this.labelBlackPawn.AutoSize = true;
             this.labelBlackPawn.Font = new System.Drawing.Font("Arial", 36F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.labelBlackPawn.Location = new System.Drawing.Point(497, 108);
+            this.labelBlackPawn.Location = new System.Drawing.Point(492, 108);
             this.labelBlackPawn.Name = "labelBlackPawn";
-            this.labelBlackPawn.Size = new System.Drawing.Size(99, 81);
+            this.labelBlackPawn.Size = new System.Drawing.Size(94, 81);
             this.labelBlackPawn.TabIndex = 9;
             this.labelBlackPawn.Text = "♟";
             this.labelBlackPawn.Click += new System.EventHandler(this.labelBlackPawn_Click);
