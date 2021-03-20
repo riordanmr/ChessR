@@ -315,6 +315,13 @@ namespace ChessR1
                 }
             }
 
+            // If a pawn reaches the last rank, promote it.
+            // For now, always promote to Queen.
+            if (pieceType == PieceType.Pawn && (irowStop == 0 || irowStop == NUMROWS - 1)) {
+                int newPieceWithColor = PieceType.Queen | (piece & PieceColor.Mask);
+                board.cells[irowStop, icolStop] = (byte)newPieceWithColor;
+            }
+
             if (bDisplay) {
                 // This causes the move to be displayed on the board.
                 selectedRowStart = irowStart;
