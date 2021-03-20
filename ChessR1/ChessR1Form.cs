@@ -245,6 +245,14 @@ namespace ChessR1
             return strBoard;
         }
 
+        int ColorTo0Or1(int color) {
+            if (color == PieceColor.White) {
+                return 0;
+            } else {
+                return 1;
+            }
+        }
+
         void DrawTextualBoard() {
             //textBoxBoard.Text = ComputeTextualBoard();
         }
@@ -272,9 +280,40 @@ namespace ChessR1
         /// <param name="bDisplay">true if we should display this move on the screen.</param>
         void MovePiece(ref Board board, int irowStart, int icolStart, int irowStop, int icolStop, bool bDisplay) {
             int piece = board.cells[irowStart, icolStart];
+            int pieceType = piece & PieceType.Mask;
             int oldpiece = board.cells[irowStop, icolStop];
             board.cells[irowStop, icolStop] = (byte)piece;
             board.cells[irowStart, icolStart] = 0;
+
+            // Special-case castling.
+            int idxColor = ColorTo0Or1(piece & PieceColor.Mask);
+            if ((PieceType.Mask & piece) == PieceType.King && (Math.Abs(icolStart-icolStop) > 1)) {
+                // This is castling.  Also move the rook.  Determine which rook, and where.
+                //mrrtodo  Fix this when we implement option of black on bottom.
+                if (6 == icolStop) {
+                    // Kingside castling.  Move rook.
+                    board.cells[irowStop, 5] = board.cells[irowStop, 7];
+                    board.cells[irowStop, 7] = 0;
+                    board.bOKCastleKing[idxColor] = false;
+                } else if(2 == icolStop) {
+                    // Queenside castling.  Move rook. 
+                    board.cells[irowStop, 3] = board.cells[irowStop, 0];
+                    board.cells[irowStop, 0] = 0;
+                    board.bOKCastleQueen[idxColor] = false;
+                }
+            }
+            // Clear "OK to castle" flag(s) whenever rook or king moves.
+            if (pieceType == PieceType.King) {
+                board.bOKCastleKing[idxColor] = false;
+                board.bOKCastleQueen[idxColor] = false;
+            }
+            if ((pieceType == PieceType.Rook)) {
+                if (icolStart == 0) {
+                    board.bOKCastleQueen[idxColor] = false;
+                } else if (icolStart == 7) {
+                    board.bOKCastleKing[idxColor] = false;
+                }
+            }
 
             if (bDisplay) {
                 // This causes the move to be displayed on the board.
@@ -291,11 +330,11 @@ namespace ChessR1
         /// <param name="board">The board in question</param>
         /// <param name="irow">The row of the piece (0-7)</param>
         /// <param name="icol">The column of the piece (0-7)</param>
+        /// <param name="myColor">My color; the attacker must be of the other player</param>
         /// <returns>true if that square is being attacked by the other player</returns>
-        bool IsSquareAttacked(ref Board board, int irow, int icol) {
+        bool IsSquareAttacked(ref Board board, int irow, int icol, int myColor) {
             bool bIsAttacked = false;
             int piece = board.cells[irow, icol];
-            int myColor = piece & PieceColor.Mask;
             int pieceType = piece & PieceType.Mask;
 
             // First check for knights.
@@ -560,7 +599,7 @@ namespace ChessR1
                 DebugOut($"KingIsUnderAttack: found king at {RowColToAlgebraic(irowKing, icolKing)}");
             }
 
-            bool bIsAttacked = IsSquareAttacked(ref board, irowKing, icolKing);
+            bool bIsAttacked = IsSquareAttacked(ref board, irowKing, icolKing, color);
             return bIsAttacked;
         }
 
@@ -582,6 +621,10 @@ namespace ChessR1
             // Save the from and to squares.
             byte savedStart = board.cells[irowStart, icolStart];
             byte savedStop = board.cells[irowStop, icolStop];
+            bool savedCastleKing0 = board.bOKCastleKing[0];
+            bool savedCastleKing1 = board.bOKCastleKing[1];
+            bool savedCastleQueen0 = board.bOKCastleQueen[0];
+            bool savedCastleQueen1 = board.bOKCastleQueen[1];
 
             // Tentatively move the piece.
             MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
@@ -594,6 +637,10 @@ namespace ChessR1
             // Undo the tentative move - we don't really want to change the board.
             board.cells[irowStart, icolStart] = savedStart;
             board.cells[irowStop, icolStop] = savedStop;
+            board.bOKCastleKing[0] = savedCastleKing0;
+            board.bOKCastleKing[1] = savedCastleKing1;
+            board.bOKCastleQueen[0] = savedCastleQueen0;
+            board.bOKCastleQueen[1] = savedCastleQueen1;
         }
 
         int ComputeLegalMovesForPawn(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
@@ -879,7 +926,67 @@ namespace ChessR1
                     }
                 }
             }
-         }
+            // Check for castling.
+            int idxCastleSide = ColorTo0Or1(myColor);
+            // OK to castle king side?
+            if (m_board.bOKCastleKing[idxCastleSide]) {
+                if (myColor == PieceColor.White) {
+                    // Assume white at bottom of board.  Check for empty squares:
+                    // RNBQK__R
+                    if (0 == m_board.cells[NUMROWS - 1, 5] && 0 == m_board.cells[NUMROWS - 1, 6]) {
+                        // Squares between are empty.  Are they attacked?
+                        if (!IsSquareAttacked(ref m_board, NUMROWS - 1, 5, myColor) &&
+                            !IsSquareAttacked(ref m_board, NUMROWS - 1, 6, myColor)) {
+                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(NUMROWS - 1, 4, NUMROWS - 1, 6);
+                            DebugOut($"Adding kingside castling as legal move for white");
+                        }
+                    }
+                } else {
+                    // Assume black at top of board.  Check for empty squares:
+                    // RNBQK__R
+                    if (0 == m_board.cells[0, 5] && 0 == m_board.cells[0, 6]) {
+                        // Squares between are empty.  Are they attacked?
+                        if (!IsSquareAttacked(ref m_board, 0, 5, myColor) &&
+                            !IsSquareAttacked(ref m_board, 0, 6, myColor)) {
+                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(0, 4, 0, 6);
+                            DebugOut($"Adding kingside castling as legal move for black");
+                        }
+                    }
+                }
+            }
+
+            // OK to castle queen side?
+            // mrrtodo clear this flag when castling.
+            if (m_board.bOKCastleQueen[idxCastleSide]) {
+                if (myColor == PieceColor.White) {
+                    // Assume white at bottom of board.  Check for empty squares:
+                    // R___KBNR
+                    if (0 == m_board.cells[NUMROWS - 1, 1] && 0 == m_board.cells[NUMROWS - 1, 2] &&
+                        0 == m_board.cells[NUMROWS - 1, 3]) {
+                        // Squares between are empty.  Are they attacked?
+                        if (!IsSquareAttacked(ref m_board, NUMROWS - 1, 1, myColor) &&
+                            !IsSquareAttacked(ref m_board, NUMROWS - 1, 2, myColor) &&
+                            !IsSquareAttacked(ref m_board, NUMROWS - 1, 3, myColor)) {
+                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(NUMROWS - 1, 4, NUMROWS - 1, 2);
+                            DebugOut($"Adding queenside castling as legal move for white");
+                        }
+                    }
+                } else {
+                    // Assume black at top of board.  Check for empty squares:
+                    // R___KBNR
+                    if (0 == m_board.cells[0, 1] && 0 == m_board.cells[0, 2] &&
+                        0 == m_board.cells[0, 2]) {
+                        // Squares between are empty.  Are they attacked?
+                        if (!IsSquareAttacked(ref m_board, 0, 1, myColor) &&
+                            !IsSquareAttacked(ref m_board, 0, 2, myColor) &&
+                            !IsSquareAttacked(ref m_board, 0, 3, myColor)) {
+                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(0, 4, 0, 2);
+                            DebugOut($"Adding queenside castling as legal move for black");
+                        }
+                    }
+                }
+            }
+        }
 
         void ComputeLegalMovesForPiece(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
             int pieceType = m_board.cells[irow, icol];
@@ -1123,8 +1230,10 @@ namespace ChessR1
                                 // Now that the piece has moved, erase its previous legal moves.
                                 m_nValidMovesForOnePiece = 0;
                                 bDidMove = true;
+                                UseWaitCursor = true;
                                 ComputeLegalMovesForComputer(ref m_board);
                                 ChooseMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+                                UseWaitCursor = false;
                                 //DebugOut($"MouseDown: board is now\r\n{ComputeTextualBoard()}");
                                 break;
                             } else {

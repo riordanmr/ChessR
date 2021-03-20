@@ -43,6 +43,9 @@ namespace ChessR1
         // cells is indexed by row (0-7), col (0-7)
         public byte[,] cells = new byte[8, 8];
         //public bool BlackOnBottom = false;
+        // The indices to the OKCastle arrays are 0 for white and 1 for black.
+        public bool[] bOKCastleQueen = new bool[] { true, true };
+        public bool[] bOKCastleKing = new bool[] { true, true };
     };
 
     static class Program
