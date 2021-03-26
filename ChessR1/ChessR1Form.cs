@@ -55,8 +55,9 @@ namespace ChessR1
         // bits 2-0:  Row of to square
         int[] m_ValidMovesForComputer = new int[256];
         int m_nValidMovesForComputer;
-        bool bWhiteOnBottom = true;
-        int m_ComputersColor = PieceColor.Black;
+        bool m_bWhiteOnBottom;  // true if white is on the bottom of the board (meaning human plays white).
+        int m_ComputersColor;  // Color being played by the computer.
+        int m_ComputersDirection;  // -1 for computer moves up the board; 1 for computer moves down
         static int [] aryKnightMoves = {-2, -1, 1, 2};
         const int POSITION_BITMASK = 63;
         Random m_random = new Random();
@@ -66,6 +67,7 @@ namespace ChessR1
             InitializeComponent();
             thickness = (float)(squareSize * 0.04);
             penBlack = new System.Drawing.Pen(System.Drawing.Color.Black, 1 * thickness);
+            SetComputersColor(PieceColor.Black);
         }
 
         public void DebugOut(string msg) {
@@ -74,6 +76,12 @@ namespace ChessR1
 
         public void SetMessage(string msg) {
             labelMessage.Text = msg;
+        }
+
+        public void SetComputersColor(int color) {
+            m_ComputersColor = color;
+            m_ComputersDirection = (PieceColor.Black == m_ComputersColor) ? -1 : 1;
+            m_bWhiteOnBottom = (PieceColor.Black == m_ComputersColor);
         }
 
         // Combine a row and column number into a single integer.
@@ -103,8 +111,20 @@ namespace ChessR1
             return "abcdefgh".Substring(icol, 1) + "12345678".Substring(7 - irow, 1);
         }
 
+        string DescribePiece(int piece) {
+            return PieceColor.ToString(piece & PieceColor.Mask) + " " + PieceType.ToString(piece & PieceType.Mask);
+        }
+
         int ColorOfCell(byte cell) {
             return (cell & (int)PieceColor.Mask);
+        }
+
+        int ComputeEffectiveRowForDisplay(int irow) {
+            return m_bWhiteOnBottom ? irow : NUMROWS - irow - 1;
+        }
+
+        int ComputeEffectiveColForDisplay(int icol) {
+            return m_bWhiteOnBottom ? icol: NUMCOLS - icol - 1;
         }
 
         // Drawing a pawn by computing all the geometric shapes, and trying to 
@@ -170,33 +190,39 @@ namespace ChessR1
             for (int icol = 0; icol < 8; icol++) {
                 float x = (float)(offsetLeft + squareSize * (icol + 0.5) - textSize.Width * 0.5);
                 float y = (float)(offsetTop + squareSize * 8.1);
-                g.DrawString(strLetters.Substring(icol, 1), fontCoords, brushWhite, x, y);
+                int idxLetter = ComputeEffectiveColForDisplay(icol);
+                g.DrawString(strLetters.Substring(idxLetter, 1), fontCoords, brushWhite, x, y);
             }
 
             string strNumbers = "12345678";
             for (int irow = 0; irow < 8; irow++) {
                 float x = (float)(offsetLeft - squareSize * 0.4);
                 float y = (float)(offsetTop + squareSize * (irow + 0.5) - textSize.Height * 0.5);
-                g.DrawString(strNumbers.Substring(7 - irow, 1), fontCoords, brushWhite, x, y);
+                int idxDigit = m_bWhiteOnBottom ? NUMROWS - irow - 1 : irow; // ComputeEffectiveRowForDisplay(irow);
+                g.DrawString(strNumbers.Substring(idxDigit, 1), fontCoords, brushWhite, x, y);
             }
         }
 
         // Draw colored rectangles in the squares we want to highlight.
         // The square currently selected by the user (if any) gets a green rectangle.
         void DrawHighlights(Graphics g) {
+            int irow, icol;
             // Highlight the currently selected square, if any.
             if (selectedRowStart >= 0 && selectedColStart >= 0) {
-                float x = (float)(offsetLeft + (selectedColStart + 0.05) * squareSize);
-                float y = (float)(offsetTop + (selectedRowStart + 0.05) * squareSize);
+                irow = ComputeEffectiveRowForDisplay(selectedRowStart);
+                icol = ComputeEffectiveColForDisplay(selectedColStart);
+                float x = (float)(offsetLeft + (icol + 0.05) * squareSize);
+                float y = (float)(offsetTop + (irow + 0.05) * squareSize);
                 float width = (float)(squareSize * 0.9);
                 float height = width;
                 g.DrawRectangle(penSelectedStart, x, y, width, height);
             }
 
             // Highlight the squares to which the currently selected piece can move.
-            int irow, icol;
             for (int idx = 0; idx < m_nValidMovesForOnePiece; idx++) {
                 DecodeRowAndCol(m_ValidMovesForOnePiece[idx], out irow, out icol);
+                irow = ComputeEffectiveRowForDisplay(irow);
+                icol = ComputeEffectiveColForDisplay(icol);
                 float x = (float)(offsetLeft + (icol + 0.05) * squareSize);
                 float y = (float)(offsetTop + (irow + 0.05) * squareSize);
                 float width = (float)(squareSize * 0.9);
@@ -206,8 +232,10 @@ namespace ChessR1
 
             // Highlight the square to which a piece was just moved, if any.
             if (selectedRowStop >= 0 && selectedColStop >= 0) {
-                float x = (float)(offsetLeft + (selectedColStop + 0.05) * squareSize);
-                float y = (float)(offsetTop + (selectedRowStop + 0.05) * squareSize);
+                irow = ComputeEffectiveRowForDisplay(selectedRowStop);
+                icol = ComputeEffectiveColForDisplay(selectedColStop);
+                float x = (float)(offsetLeft + (icol + 0.05) * squareSize);
+                float y = (float)(offsetTop + (irow + 0.05) * squareSize);
                 float width = (float)(squareSize * 0.9);
                 float height = width;
                 g.DrawRectangle(penSelectedStop, x, y, width, height);
@@ -219,10 +247,13 @@ namespace ChessR1
             for (int irow = 0; irow < NUMROWS; irow++) {
                 for (int icol = 0; icol < NUMCOLS; icol++) {
                     if (board.cells[irow, icol] != 0) {
-                        DrawPiece(g, board.cells[irow, icol], irow, icol);
+                        //DebugOut($"DrawPieces: drawing {DescribePiece(board.cells[irow, icol])} at {RowColToAlgebraic(irow,icol)}");
+                        DrawPiece(g, board.cells[irow, icol], 
+                            ComputeEffectiveRowForDisplay(irow), ComputeEffectiveColForDisplay(icol));
                         nDrawn++;
                     } else {
-                        DrawPiece(g, 0, irow, icol);
+                        DrawPiece(g, 0, 
+                            ComputeEffectiveRowForDisplay(irow), ComputeEffectiveColForDisplay(icol));
                     }
                 }
             }
@@ -546,10 +577,8 @@ namespace ChessR1
             }
 
             // Check whether a pawn is attacking this square.
-            // Player's side is at bottom of board.
-            // Start with assumption that the piece (maybe) being attacked is the player's. 
             int directionFromPieceToPawn = -1;
-            if (myColor == m_ComputersColor) {
+            if (myColor == PieceColor.Black) {
                 directionFromPieceToPawn = 1;
             }
             // The row on which we are checking a pawn is one away from the current row;
@@ -642,6 +671,7 @@ namespace ChessR1
                 DebugOut($"Rejected move from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} due to King in check");
             }
             // Undo the tentative move - we don't really want to change the board.
+            // mrrtodo: undo castle
             board.cells[irowStart, icolStart] = savedStart;
             board.cells[irowStop, icolStop] = savedStop;
             board.bOKCastleKing[0] = savedCastleKing0;
@@ -653,7 +683,7 @@ namespace ChessR1
         int ComputeLegalMovesForPawn(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
-            if (PieceColor.White == myColor && bWhiteOnBottom || PieceColor.Black == myColor && !bWhiteOnBottom) {
+            if (PieceColor.White == myColor /*&& m_bWhiteOnBottom || PieceColor.Black == myColor && !m_bWhiteOnBottom*/) {
                 // Moves are from bottom to top.
                 // This check shouldn't really be necessary, since a pawn can't be on the last rank.
                 if (irow > 0) {
@@ -963,7 +993,6 @@ namespace ChessR1
             }
 
             // OK to castle queen side?
-            // mrrtodo clear this flag when castling.
             if (m_board.bOKCastleQueen[idxCastleSide]) {
                 if (myColor == PieceColor.White) {
                     // Assume white at bottom of board.  Check for empty squares:
@@ -996,6 +1025,7 @@ namespace ChessR1
         }
 
         void ComputeLegalMovesForPiece(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
+            DebugOut($"ComputeLegalMovesForPiece called for {DescribePiece(m_board.cells[irow,icol])} at {RowColToAlgebraic(irow,icol)}");
             int pieceType = m_board.cells[irow, icol];
             pieceType &= PieceType.Mask;
             switch (pieceType) {
@@ -1085,6 +1115,10 @@ namespace ChessR1
             for (int icol = 0; icol < 8; icol++) {
                 board.cells[1, icol] = PieceColor.Black | PieceType.Pawn;
                 board.cells[6, icol] = PieceColor.White | PieceType.Pawn;
+
+                for (int irow = 2; irow < 6; irow++) {
+                    board.cells[irow, icol] = 0;
+                }
             }
 
             board.cells[7, 0] = PieceColor.White | PieceType.Rook;
@@ -1103,11 +1137,28 @@ namespace ChessR1
             //board.cells[5, 2] = PieceColor.Black | PieceType.King;
             //board.cells[4, 5] = PieceColor.White | PieceType.Queen;
             //board.cells[5, 5] = PieceColor.White | PieceType.Queen;
+            board.bOKCastleKing[0] = true;
+            board.bOKCastleKing[1] = true;
+            board.bOKCastleQueen[0] = true;
+            board.bOKCastleQueen[1] = true;
+        }
 
+        void ClearHighlights() {
+            selectedRowStart = NOT_SELECTED;
+            selectedColStart = NOT_SELECTED;
+            selectedRowStop = NOT_SELECTED;
+            selectedColStop = NOT_SELECTED;
+        }
+
+        void InitializeGame() {
+            CreateInitialBoard(ref m_board);
+            ClearHighlights();
+            m_nValidMovesForOnePiece = 0;
+            m_bGameOver = false;
         }
 
         private void ChessR1Form_Load(object sender, EventArgs e) {
-            CreateInitialBoard(ref m_board);
+            InitializeGame();
         }
 
         private void ChessR1Form_Paint(object sender, PaintEventArgs e) {
@@ -1153,6 +1204,26 @@ namespace ChessR1
             DrawBoard(e.Graphics, ref m_board);
         }
 
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e) {
+            Application.Exit();
+        }
+
+        private void computerPlaysBlackToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SetComputersColor(PieceColor.Black);
+            InitializeGame();
+            Invalidate();
+        }
+
+        private void computerPlaysWhiteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SetComputersColor(PieceColor.White);
+            InitializeGame();
+            ComputeLegalMovesForComputer(ref m_board);
+            ChooseMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+            Invalidate();
+        }
+
         private void MouseRightClickEvent(object sender, MouseEventArgs e, int curRow, int curCol) {
             FormChoosePiece form = new FormChoosePiece();
             form.ShowDialog();
@@ -1185,8 +1256,10 @@ namespace ChessR1
             PointF pointMouse = e.Location;
             if (pointMouse.X >= offsetLeft && pointMouse.X < offsetLeft + NUMCOLS * squareSize) {
                 if (pointMouse.Y > offsetTop && pointMouse.Y < offsetTop + NUMROWS * squareSize) {
-                    curCol = (int)((pointMouse.X - offsetLeft) / squareSize);
-                    curRow = (int)((pointMouse.Y - offsetTop) / squareSize);
+                    int curColRaw = (int)((pointMouse.X - offsetLeft) / squareSize);
+                    curCol = this.ComputeEffectiveColForDisplay(curColRaw);
+                    int curRowRaw = (int)((pointMouse.Y - offsetTop) / squareSize);
+                    curRow = ComputeEffectiveRowForDisplay(curRowRaw);
                     bWithinASquare = true;
                 }
             }
@@ -1200,6 +1273,7 @@ namespace ChessR1
 
             if (bWithinASquare) {
                 if (!bASquareWasAlreadySelected) {
+                    DebugOut($"MouseDown: at algebraic {RowColToAlgebraic(curRow, curCol)}");
                     ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
                 }
             }

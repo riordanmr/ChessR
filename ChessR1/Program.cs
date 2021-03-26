@@ -40,7 +40,9 @@ namespace ChessR1
 
     public class Board
     {
-        // cells is indexed by row (0-7), col (0-7)
+        // cells is indexed by row (0-7; internal row 0 = rank 8), col (0-7; internal col 0 = file a).
+        // The mapping between row/col and algebraic location on the board is fixed as above,
+        // regardless of who is playing white and whether the white pieces are displayed on the bottom.
         public byte[,] cells = new byte[8, 8];
         //public bool BlackOnBottom = false;
         // The indices to the OKCastle arrays are 0 for white and 1 for black.
