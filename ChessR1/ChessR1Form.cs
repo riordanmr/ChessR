@@ -55,6 +55,7 @@ namespace ChessR1
         // bits 2-0:  Row of to square
         int[] m_ValidMovesForComputer = new int[256];
         int m_nValidMovesForComputer;
+        int[] m_ScoresForValidMovesForComputer = new int[256];
         bool m_bWhiteOnBottom;  // true if white is on the bottom of the board (meaning human plays white).
         int m_ComputersColor;  // Color being played by the computer.
         int m_ComputersDirection;  // -1 for computer moves up the board; 1 for computer moves down
@@ -62,12 +63,31 @@ namespace ChessR1
         const int POSITION_BITMASK = 63;
         Random m_random = new Random();
         bool m_bGameOver = false;
+        int [] m_aryPieceBaseValue = new int[16];
 
         public ChessR1Form() {
             InitializeComponent();
             thickness = (float)(squareSize * 0.04);
             penBlack = new System.Drawing.Pen(System.Drawing.Color.Black, 1 * thickness);
             SetComputersColor(PieceColor.Black);
+            InitializePieceBaseValues();
+        }
+
+        private void InitializePieceBaseValues() {
+            // Values for pieces come from _Chess Skill in Man and Machine_, edition 1, p. 94.
+            m_aryPieceBaseValue[PieceColor.White | PieceType.Pawn] = 100;
+            m_aryPieceBaseValue[PieceColor.White | PieceType.Knight] = 325;
+            m_aryPieceBaseValue[PieceColor.White | PieceType.Bishop] = 350;
+            m_aryPieceBaseValue[PieceColor.White | PieceType.Rook] = 500;
+            m_aryPieceBaseValue[PieceColor.White | PieceType.Queen] = 900;
+            m_aryPieceBaseValue[PieceColor.White | PieceType.King] = 29999;
+
+            m_aryPieceBaseValue[PieceColor.Black | PieceType.Pawn] = -100;
+            m_aryPieceBaseValue[PieceColor.Black | PieceType.Knight] = -325;
+            m_aryPieceBaseValue[PieceColor.Black | PieceType.Bishop] = -350;
+            m_aryPieceBaseValue[PieceColor.Black | PieceType.Rook] = -500;
+            m_aryPieceBaseValue[PieceColor.Black | PieceType.Queen] = -900;
+            m_aryPieceBaseValue[PieceColor.Black | PieceType.King] = -29999;
         }
 
         public void DebugOut(string msg) {
@@ -320,7 +340,6 @@ namespace ChessR1
             int idxColor = ColorTo0Or1(piece & PieceColor.Mask);
             if ((PieceType.Mask & piece) == PieceType.King && (Math.Abs(icolStart-icolStop) > 1)) {
                 // This is castling.  Also move the rook.  Determine which rook, and where.
-                //mrrtodo  Fix this when we implement option of black on bottom.
                 if (6 == icolStop) {
                     // Kingside castling.  Move rook.
                     board.cells[irowStop, 5] = board.cells[irowStop, 7];
@@ -639,6 +658,26 @@ namespace ChessR1
             return bIsAttacked;
         }
 
+        void SaveBoardState(int irowStart, int icolStart, int irowStop, int icolStop,
+            ref Board board, ref BoardSaveState state) {
+            state.savedStart = board.cells[irowStart, icolStart];
+            state.savedStop = board.cells[irowStop, icolStop];
+            state.savedCastleKing0 = board.bOKCastleKing[0];
+            state.savedCastleKing1 = board.bOKCastleKing[1];
+            state.savedCastleQueen0 = board.bOKCastleQueen[0];
+            state.savedCastleQueen1 = board.bOKCastleQueen[1];
+        }
+
+        void RestoreBoardState(int irowStart, int icolStart, int irowStop, int icolStop,
+            ref Board board, ref BoardSaveState state) {
+            board.cells[irowStart, icolStart] = state.savedStart;
+            board.cells[irowStop, icolStop] = state.savedStop;
+            board.bOKCastleKing[0] = state.savedCastleKing0;
+            board.bOKCastleKing[1] = state.savedCastleKing1;
+            board.bOKCastleQueen[0] = state.savedCastleQueen0;
+            board.bOKCastleQueen[1] = state.savedCastleQueen1;
+        }
+
         /// <summary>
         /// Add a move to a list of possible moves if the move is legal
         /// </summary>
@@ -654,13 +693,9 @@ namespace ChessR1
         void AddMoveIfKingNotUnderAttack(ref Board board, int myColor,
             int irowStart, int icolStart, int irowStop, int icolStop, 
             ref int[] aryValidMoves, ref int nMoves) {
+            BoardSaveState boardSaveState = new BoardSaveState();
             // Save the from and to squares.
-            byte savedStart = board.cells[irowStart, icolStart];
-            byte savedStop = board.cells[irowStop, icolStop];
-            bool savedCastleKing0 = board.bOKCastleKing[0];
-            bool savedCastleKing1 = board.bOKCastleKing[1];
-            bool savedCastleQueen0 = board.bOKCastleQueen[0];
-            bool savedCastleQueen1 = board.bOKCastleQueen[1];
+            SaveBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
 
             // Tentatively move the piece.
             MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
@@ -672,12 +707,13 @@ namespace ChessR1
             }
             // Undo the tentative move - we don't really want to change the board.
             // mrrtodo: undo castle
-            board.cells[irowStart, icolStart] = savedStart;
-            board.cells[irowStop, icolStop] = savedStop;
-            board.bOKCastleKing[0] = savedCastleKing0;
-            board.bOKCastleKing[1] = savedCastleKing1;
-            board.bOKCastleQueen[0] = savedCastleQueen0;
-            board.bOKCastleQueen[1] = savedCastleQueen1;
+            //board.cells[irowStart, icolStart] = savedStart;
+            //board.cells[irowStop, icolStop] = savedStop;
+            //board.bOKCastleKing[0] = savedCastleKing0;
+            //board.bOKCastleKing[1] = savedCastleKing1;
+            //board.bOKCastleQueen[0] = savedCastleQueen0;
+            //board.bOKCastleQueen[1] = savedCastleQueen1;
+            RestoreBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
         }
 
         int ComputeLegalMovesForPawn(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
@@ -1079,19 +1115,80 @@ namespace ChessR1
             DebugOut(msg + ":" + strValidMoves);
         }
 
+        // Evaluate a board position, returning a score that is positive if things look
+        // good for White, or negative if Black is doing better.
+        int EvaluateBoard(ref Board board) {
+            int score = 0;
+            for (int irow = 0; irow < NUMROWS; irow++) {
+                for (int icol = 0; icol < NUMROWS; icol++) {
+                    score += m_aryPieceBaseValue[board.cells[irow, icol]];
+                    int piece = board.cells[irow, icol];
+                    //DebugOut($"EvaluateBoard: {DescribePiece(piece)} at {RowColToAlgebraic(irow,icol)} has score {m_aryPieceBaseValue[board.cells[irow, icol]]}");
+                }
+            }
+            //DebugOut($"EvaluateBoard returning {score}");
+            return score;
+        }
+
         void ChooseMoveForComputer(ref Board board, ref int[] aryValidMoves, int nValidMoves) {
             if (nValidMoves > 0) {
                 DumpValidMoves("Valid moves for computer", ref aryValidMoves, nValidMoves);
+#if false
                 // For now, choose a piece at random.
                 int idxMove = m_random.Next(nValidMoves);
-                int move = aryValidMoves[idxMove];
-                //DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
-                int irowStart, icolStart, irowStop, icolStop;
+#endif
+                // Loop through all legal moves, evaluating the board position 
+                // that would result if we made each of those moves.
+                // Store the results in m_ScoresForValidMovesForComputer.
+                int irowStart = -1, icolStart = -1, irowStop = -1, icolStop = -1;
+                int score, move=0;
+                BoardSaveState boardSaveState = new BoardSaveState();
+                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                    move = aryValidMoves[idxMove];
+                    DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+                    //int piece = board.cells[irowStart, icolStart];
+                    SaveBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
+                    MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
+                    score = EvaluateBoard(ref board);
+                    // We will search for the move with the highest score. 
+                    // So if we (the computer) are playing black piece, negate the score,
+                    // so that moves that are favorable for Black will result in high scores.
+                    if (m_ComputersColor == PieceColor.Black) score = -score;
+                    m_ScoresForValidMovesForComputer[idxMove] = score;
+                    RestoreBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
+                }
+
+                // Find the move with the highest score.  (There may be more than one with that score.)
+                int highScore = -1, idxOfHigh = 0;
+                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                    if (m_ScoresForValidMovesForComputer[idxMove] > highScore) {
+                        highScore = m_ScoresForValidMovesForComputer[idxMove];
+                        idxOfHigh = idxMove;
+                    }
+                }
+                // Count the number of moves with that score.
+                int nWithHighScore = 0;
+                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                    if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
+                        nWithHighScore++;
+                    }
+                }
+
+                // Choose a move at random from those tied with the highest score.
+                int nthRandom = m_random.Next(nWithHighScore);
+                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                    if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
+                        if (nthRandom-- <= 0) {
+                            move = aryValidMoves[idxMove];
+                            break;
+                        }
+                    }
+                }
+
                 DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
                 int piece = board.cells[irowStart, icolStart];
-                int color = piece & PieceColor.Mask;
-                int pieceType = piece & PieceType.Mask;
-                DebugOut($"Computer will move {PieceColor.ToString(color)} {PieceType.ToString(pieceType)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)}");
+                //DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
+                DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {highScore}");
                 MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, true);
             } else {
                 if (KingIsUnderAttack(ref m_board, m_ComputersColor)) {

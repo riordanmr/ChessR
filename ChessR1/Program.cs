@@ -38,6 +38,16 @@ namespace ChessR1
         }
     };
 
+    struct BoardSaveState 
+    {
+        public byte savedStart;
+        public byte savedStop;
+        public bool savedCastleKing0;
+        public bool savedCastleKing1;
+        public bool savedCastleQueen0;
+        public bool savedCastleQueen1;
+    }
+
     public class Board
     {
         // cells is indexed by row (0-7; internal row 0 = rank 8), col (0-7; internal col 0 = file a).
