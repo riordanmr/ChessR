@@ -80,14 +80,14 @@ namespace ChessR1
             m_aryPieceBaseValue[PieceColor.White | PieceType.Bishop] = 350;
             m_aryPieceBaseValue[PieceColor.White | PieceType.Rook] = 500;
             m_aryPieceBaseValue[PieceColor.White | PieceType.Queen] = 900;
-            m_aryPieceBaseValue[PieceColor.White | PieceType.King] = 29999;
+            m_aryPieceBaseValue[PieceColor.White | PieceType.King] = 19999;
 
             m_aryPieceBaseValue[PieceColor.Black | PieceType.Pawn] = -100;
             m_aryPieceBaseValue[PieceColor.Black | PieceType.Knight] = -325;
             m_aryPieceBaseValue[PieceColor.Black | PieceType.Bishop] = -350;
             m_aryPieceBaseValue[PieceColor.Black | PieceType.Rook] = -500;
             m_aryPieceBaseValue[PieceColor.Black | PieceType.Queen] = -900;
-            m_aryPieceBaseValue[PieceColor.Black | PieceType.King] = -29999;
+            m_aryPieceBaseValue[PieceColor.Black | PieceType.King] = -19999;
         }
 
         public void DebugOut(string msg) {
@@ -378,6 +378,8 @@ namespace ChessR1
                 selectedColStart = icolStart;
                 selectedRowStop = irowStop;
                 selectedColStop = icolStop;
+                string captureMsg = oldpiece != 0 ? $"capturing {DescribePiece(oldpiece)}" : "";
+                DebugOut($"Moved {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} {captureMsg}");
             }
         }
 
@@ -651,7 +653,7 @@ namespace ChessR1
             if (!bFound) {
                 DebugOut($"** Error: cannot find {PieceColor.ToString(color)} {PieceType.ToString(PieceType.King)}");
             } else {
-                DebugOut($"KingIsUnderAttack: found king at {RowColToAlgebraic(irowKing, icolKing)}");
+                //DebugOut($"KingIsUnderAttack: found king at {RowColToAlgebraic(irowKing, icolKing)}");
             }
 
             bool bIsAttacked = IsSquareAttacked(ref board, irowKing, icolKing, color);
@@ -1061,7 +1063,7 @@ namespace ChessR1
         }
 
         void ComputeLegalMovesForPiece(int irow, int icol, ref int[] aryValidMoves, ref int nMoves) {
-            DebugOut($"ComputeLegalMovesForPiece called for {DescribePiece(m_board.cells[irow,icol])} at {RowColToAlgebraic(irow,icol)}");
+            //DebugOut($"ComputeLegalMovesForPiece called for {DescribePiece(m_board.cells[irow,icol])} at {RowColToAlgebraic(irow,icol)}");
             int pieceType = m_board.cells[irow, icol];
             pieceType &= PieceType.Mask;
             switch (pieceType) {
@@ -1159,7 +1161,7 @@ namespace ChessR1
                 }
 
                 // Find the move with the highest score.  (There may be more than one with that score.)
-                int highScore = -1, idxOfHigh = 0;
+                int highScore = -99999, idxOfHigh = 0;
                 for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
                     if (m_ScoresForValidMovesForComputer[idxMove] > highScore) {
                         highScore = m_ScoresForValidMovesForComputer[idxMove];
@@ -1176,6 +1178,7 @@ namespace ChessR1
 
                 // Choose a move at random from those tied with the highest score.
                 int nthRandom = m_random.Next(nWithHighScore);
+                DebugOut($"I found {nWithHighScore} moves with best score {highScore}; will choose # {nthRandom}");
                 for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
                     if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
                         if (nthRandom-- <= 0) {
@@ -1401,6 +1404,7 @@ namespace ChessR1
                                 //m_board.cells[curRow, curCol] = pieceBeingMoved;
                                 //m_board.cells[selectedRowStart, selectedColStart] = 0;
                                 MovePiece(ref m_board, selectedRowStart, selectedColStart, curRow, curCol, true);
+                                DebugOut($"After human move, board is now\r\n{ComputeTextualBoard()}");
 
                                 selectedRowStop = curRow;
                                 selectedColStop = curCol;
