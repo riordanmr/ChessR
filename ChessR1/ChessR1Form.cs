@@ -71,6 +71,7 @@ namespace ChessR1
             penBlack = new System.Drawing.Pen(System.Drawing.Color.Black, 1 * thickness);
             SetComputersColor(PieceColor.Black);
             InitializePieceBaseValues();
+            InitializeGame();
         }
 
         private void InitializePieceBaseValues() {
@@ -1255,6 +1256,7 @@ namespace ChessR1
             ClearHighlights();
             m_nValidMovesForOnePiece = 0;
             m_bGameOver = false;
+            SetMessage("");
         }
 
         private void ChessR1Form_Load(object sender, EventArgs e) {
