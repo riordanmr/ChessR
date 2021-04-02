@@ -665,6 +665,16 @@ namespace ChessR1
             ref Board board, ref BoardSaveState state) {
             state.savedStart = board.cells[irowStart, icolStart];
             state.savedStop = board.cells[irowStop, icolStop];
+
+            // In case we are castling, save the squares that might be affected by castling.
+            // I'm trying to avoid too much logic here, as it's probably faster to store a
+            // few extra bytes than to figure out whether the storing could be avoided.
+            int irowCastle = irowStart == 0 ? 0 : NUMROWS - 1;
+            state.savedBishopKing = board.cells[irowCastle, 5];
+            state.savedQueen = board.cells[irowCastle, 3];
+            state.savedRookKing = board.cells[irowCastle, NUMCOLS - 1];
+            state.savedRookQueen = board.cells[irowCastle, 0];
+
             state.savedCastleKing0 = board.bOKCastleKing[0];
             state.savedCastleKing1 = board.bOKCastleKing[1];
             state.savedCastleQueen0 = board.bOKCastleQueen[0];
@@ -675,6 +685,13 @@ namespace ChessR1
             ref Board board, ref BoardSaveState state) {
             board.cells[irowStart, icolStart] = state.savedStart;
             board.cells[irowStop, icolStop] = state.savedStop;
+
+            int irowCastle = irowStart == 0 ? 0 : NUMROWS - 1;
+            board.cells[irowCastle, 5] = state.savedBishopKing;
+            board.cells[irowCastle, 3] = state.savedQueen;
+            board.cells[irowCastle, NUMCOLS - 1] = state.savedRookKing;
+            board.cells[irowCastle, 0] = state.savedRookQueen;
+
             board.bOKCastleKing[0] = state.savedCastleKing0;
             board.bOKCastleKing[1] = state.savedCastleKing1;
             board.bOKCastleQueen[0] = state.savedCastleQueen0;

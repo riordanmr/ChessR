@@ -42,6 +42,10 @@ namespace ChessR1
     {
         public byte savedStart;
         public byte savedStop;
+        public byte savedRookQueen;
+        public byte savedRookKing;
+        public byte savedBishopKing;
+        public byte savedQueen;
         public bool savedCastleKing0;
         public bool savedCastleKing1;
         public bool savedCastleQueen0;
