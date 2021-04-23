@@ -44,6 +44,7 @@ namespace ChessR1
             this.labelMessage.Name = "labelMessage";
             this.labelMessage.Size = new System.Drawing.Size(565, 44);
             this.labelMessage.TabIndex = 0;
+            this.labelMessage.Visible = false;
             // 
             // menuStrip1
             // 
@@ -71,7 +72,7 @@ namespace ChessR1
             this.computerPlaysBlackToolStripMenuItem,
             this.computerPlaysWhiteToolStripMenuItem});
             this.newToolStripMenuItem.Name = "newToolStripMenuItem";
-            this.newToolStripMenuItem.Size = new System.Drawing.Size(270, 34);
+            this.newToolStripMenuItem.Size = new System.Drawing.Size(161, 34);
             this.newToolStripMenuItem.Text = "&New...";
             // 
             // computerPlaysBlackToolStripMenuItem
@@ -92,7 +93,7 @@ namespace ChessR1
             // 
             this.exitToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(270, 34);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(161, 34);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
@@ -101,7 +102,7 @@ namespace ChessR1
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Desktop;
-            this.ClientSize = new System.Drawing.Size(1100, 1116);
+            this.ClientSize = new System.Drawing.Size(1100, 1213);
             this.Controls.Add(this.labelMessage);
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;

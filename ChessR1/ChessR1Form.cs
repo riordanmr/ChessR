@@ -21,7 +21,11 @@ namespace ChessR1
         private Brush brushWhite = new SolidBrush(Color.White);
         Brush brushBoardLight = new SolidBrush(Color.FromName("cornsilk"));
         Brush brushBoardDark = new SolidBrush(Color.FromName("moccasin"));
-        float offsetTop = 90.0F;
+        Brush brushCapturedPiecesWhite = new SolidBrush(Color.LemonChiffon);
+        Brush brushCapturedPiecesBlack = new SolidBrush(Color.SandyBrown);
+
+        float offsetCapturedPiecesTop = 55.0F;
+        float offsetTop = 120.0F;
         float offsetLeft = 90.0F;
         float squareSize = 120.0F;
         float thickness;
@@ -37,7 +41,9 @@ namespace ChessR1
         // Unfortunately, the center points of the characters differ between those
         // fonts, so you can't just swap in one font for another and have it look good. 
         Font fontPieces = new Font("Arial", 60);
+        Font fontCapturedPieces = new Font("Arial", 40);
         Font fontCoords = new Font("Lucida Console", 24);
+        string strAllPieces = " ♔♕♖♗♘♙  ♚♛♜♝♞♟  ";
         Board m_board = new Board();
         const int NUMROWS = 8;
         const int NUMCOLS = 8;
@@ -58,7 +64,7 @@ namespace ChessR1
         int[] m_ScoresForValidMovesForComputer = new int[256];
         bool m_bWhiteOnBottom;  // true if white is on the bottom of the board (meaning human plays white).
         int m_ComputersColor;  // Color being played by the computer.
-        int m_ComputersDirection;  // -1 for computer moves up the board; 1 for computer moves down
+        //int m_ComputersDirection;  // -1 for computer moves up the board; 1 for computer moves down
         static int [] aryKnightMoves = {-2, -1, 1, 2};
         const int POSITION_BITMASK = 63;
         Random m_random = new Random();
@@ -96,12 +102,18 @@ namespace ChessR1
         }
 
         public void SetMessage(string msg) {
+            labelMessage.Visible = true;
             labelMessage.Text = msg;
+        }
+
+        public void ClearMessage() {
+            labelMessage.Visible = false;
+            labelMessage.Text = "";
         }
 
         public void SetComputersColor(int color) {
             m_ComputersColor = color;
-            m_ComputersDirection = (PieceColor.Black == m_ComputersColor) ? -1 : 1;
+            //m_ComputersDirection = (PieceColor.Black == m_ComputersColor) ? -1 : 1;
             m_bWhiteOnBottom = (PieceColor.Black == m_ComputersColor);
         }
 
@@ -183,8 +195,8 @@ namespace ChessR1
         /// <param name="irow">The row, 0-7</param>
         /// <param name="icol">The column 0-7</param>
         private void DrawPiece(Graphics g, int pieceWithColor, int irow, int icol) {
-            string strPieces = " ♔♕♖♗♘♙  ♚♛♜♝♞♟  ";
-            string strPiece = strPieces.Substring(pieceWithColor, 1);
+            //string strPieces = " ♔♕♖♗♘♙  ♚♛♜♝♞♟  ";
+            string strPiece = strAllPieces.Substring(pieceWithColor, 1);
             SizeF textSize = g.MeasureString(strPiece, fontPieces);
             PointF textSizeF = textSize.ToPointF();
             float x = (float)(offsetLeft + squareSize * icol + 0.0 * textSizeF.X);
@@ -309,12 +321,41 @@ namespace ChessR1
             //textBoxBoard.Text = ComputeTextualBoard();
         }
 
+        void DrawCapturedPieces(Graphics g) {
+            // Draw pieces at top.
+            //int desiredColor = m_bWhiteOnBottom ? PieceColor.Black : PieceColor.White;
+            DebugOut($"m_board.nCapturedPieces= {m_board.nCapturedPieces}");
+            string strPiecesWhite = "", strPiecesBlack = "";
+            for (int icap = 0; icap < m_board.nCapturedPieces; icap++) {
+                int thisPiece = m_board.capturedPieces[icap];
+                if ((thisPiece & PieceColor.Mask) == PieceColor.White) {
+                    strPiecesWhite += strAllPieces[thisPiece];
+                } else {
+                    strPiecesBlack += strAllPieces[thisPiece];
+                }
+            }
+
+            // Draw the captured black pieces on White's side of the board, and vice versa.
+            // Draw the pieces on top.  
+            float x = (float)(offsetLeft);
+            float y = (float)(offsetCapturedPiecesTop);
+            DebugOut($"Drawing {strPiecesWhite} at {x},{y}");
+            g.DrawString(m_bWhiteOnBottom ? strPiecesWhite : strPiecesBlack, fontCapturedPieces,
+                m_bWhiteOnBottom ? brushCapturedPiecesWhite : brushCapturedPiecesBlack, x, y);
+            // Draw the pieces on the bottom.
+            y = (float)(offsetTop + (squareSize * NUMROWS) + 0.5* squareSize);
+            DebugOut($"Drawing {strPiecesBlack} at {x},{y}");
+            g.DrawString(m_bWhiteOnBottom ? strPiecesBlack: strPiecesWhite, fontCapturedPieces,
+                m_bWhiteOnBottom ? brushCapturedPiecesBlack : brushCapturedPiecesWhite, x, y);
+        }
+
         void DrawBoard(Graphics g, ref Board board) {
             //DrawTextualBoard();
             DrawSquares(g);
             DrawCoordinates(g);
             DrawPieces(g, ref board);
             DrawHighlights(g);
+            DrawCapturedPieces(g);
         }
 
         bool IsLegalSquare(int irow, int icol) {
@@ -371,6 +412,10 @@ namespace ChessR1
             if (pieceType == PieceType.Pawn && (irowStop == 0 || irowStop == NUMROWS - 1)) {
                 int newPieceWithColor = PieceType.Queen | (piece & PieceColor.Mask);
                 board.cells[irowStop, icolStop] = (byte)newPieceWithColor;
+            }
+
+            if (0 != oldpiece) {
+                board.capturedPieces[board.nCapturedPieces++] = (byte)oldpiece;
             }
 
             if (bDisplay) {
@@ -679,6 +724,7 @@ namespace ChessR1
             state.savedCastleKing1 = board.bOKCastleKing[1];
             state.savedCastleQueen0 = board.bOKCastleQueen[0];
             state.savedCastleQueen1 = board.bOKCastleQueen[1];
+            state.savedNCapturedPieces = board.nCapturedPieces;
         }
 
         void RestoreBoardState(int irowStart, int icolStart, int irowStop, int icolStop,
@@ -696,6 +742,8 @@ namespace ChessR1
             board.bOKCastleKing[1] = state.savedCastleKing1;
             board.bOKCastleQueen[0] = state.savedCastleQueen0;
             board.bOKCastleQueen[1] = state.savedCastleQueen1;
+
+            board.nCapturedPieces = state.savedNCapturedPieces;
         }
 
         /// <summary>
@@ -1248,6 +1296,11 @@ namespace ChessR1
             board.cells[7, 6] = PieceColor.White | PieceType.Knight;
             board.cells[7, 7] = PieceColor.White | PieceType.Rook;
 
+            board.bOKCastleKing[0] = true;
+            board.bOKCastleKing[1] = true;
+            board.bOKCastleQueen[0] = true;
+            board.bOKCastleQueen[1] = true;
+
             // Temporary extra pieces
             //board.cells[2, 1] = PieceColor.Black | PieceType.Rook;
             //board.cells[3, 2] = PieceColor.White | PieceType.King;
@@ -1255,10 +1308,14 @@ namespace ChessR1
             //board.cells[5, 2] = PieceColor.Black | PieceType.King;
             //board.cells[4, 5] = PieceColor.White | PieceType.Queen;
             //board.cells[5, 5] = PieceColor.White | PieceType.Queen;
-            board.bOKCastleKing[0] = true;
-            board.bOKCastleKing[1] = true;
-            board.bOKCastleQueen[0] = true;
-            board.bOKCastleQueen[1] = true;
+
+            // For testing display of captured pieces.
+            //board.nCapturedPieces = 0;
+            //board.capturedPieces[board.nCapturedPieces++] = PieceColor.White | PieceType.Pawn;
+            //board.capturedPieces[board.nCapturedPieces++] = PieceColor.White | PieceType.Rook;
+            //board.capturedPieces[board.nCapturedPieces++] = PieceColor.Black | PieceType.Bishop;
+            //board.capturedPieces[board.nCapturedPieces++] = PieceColor.Black | PieceType.Knight;
+            //board.capturedPieces[board.nCapturedPieces++] = PieceColor.White | PieceType.Pawn;
         }
 
         void ClearHighlights() {
@@ -1273,7 +1330,7 @@ namespace ChessR1
             ClearHighlights();
             m_nValidMovesForOnePiece = 0;
             m_bGameOver = false;
-            SetMessage("");
+            ClearMessage();
         }
 
         private void ChessR1Form_Load(object sender, EventArgs e) {

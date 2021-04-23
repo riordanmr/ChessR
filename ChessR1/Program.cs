@@ -50,6 +50,7 @@ namespace ChessR1
         public bool savedCastleKing1;
         public bool savedCastleQueen0;
         public bool savedCastleQueen1;
+        public int savedNCapturedPieces;
     }
 
     public class Board
@@ -58,6 +59,11 @@ namespace ChessR1
         // The mapping between row/col and algebraic location on the board is fixed as above,
         // regardless of who is playing white and whether the white pieces are displayed on the bottom.
         public byte[,] cells = new byte[8, 8];
+        // capturedPieces contains the pieces that have been captured so far, in order.
+        // White and Black are intermingled.
+        public byte[] capturedPieces = new byte[32];
+        // The actual number of current captured pieces.
+        public int nCapturedPieces = 0;
         //public bool BlackOnBottom = false;
         // The indices to the OKCastle arrays are 0 for white and 1 for black.
         public bool[] bOKCastleQueen = new bool[] { true, true };
