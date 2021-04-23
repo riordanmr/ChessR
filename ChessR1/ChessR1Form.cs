@@ -1150,7 +1150,7 @@ namespace ChessR1
             return score;
         }
 
-        void ChooseMoveForComputer(ref Board board, ref int[] aryValidMoves, int nValidMoves) {
+        void ChooseAndMakeMoveForComputer(ref Board board, ref int[] aryValidMoves, int nValidMoves) {
             if (nValidMoves > 0) {
                 DumpValidMoves("Valid moves for computer", ref aryValidMoves, nValidMoves);
 #if false
@@ -1213,7 +1213,7 @@ namespace ChessR1
                 MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, true);
             } else {
                 if (KingIsUnderAttack(ref m_board, m_ComputersColor)) {
-                    SetMessage("Computer has been checkmated!");
+                    SetMessage("Human wins via checkmate!");
                 } else {
                     SetMessage("Stalemate!");
                 }
@@ -1339,7 +1339,7 @@ namespace ChessR1
             SetComputersColor(PieceColor.White);
             InitializeGame();
             ComputeLegalMovesForComputer(ref m_board);
-            ChooseMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+            ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
             Invalidate();
         }
 
@@ -1433,7 +1433,7 @@ namespace ChessR1
                                 bDidMove = true;
                                 UseWaitCursor = true;
                                 ComputeLegalMovesForComputer(ref m_board);
-                                ChooseMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+                                ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
                                 UseWaitCursor = false;
                                 //DebugOut($"MouseDown: board is now\r\n{ComputeTextualBoard()}");
                                 break;
