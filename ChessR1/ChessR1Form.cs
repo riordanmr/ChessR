@@ -70,6 +70,7 @@ namespace ChessR1
         Random m_random = new Random();
         bool m_bGameOver = false;
         int [] m_aryPieceBaseValue = new int[16];
+        int m_lookaheadPlies = 4;
 
         public ChessR1Form() {
             InitializeComponent();
@@ -1155,20 +1156,25 @@ namespace ChessR1
             }
         }
 
-        void ComputeLegalMovesForComputer(ref Board board) {
-            m_nValidMovesForComputer = 0;
+        void ComputeLegalMovesForSide(ref Board board, int pieceColor, 
+            ref int[] validMovesForComputer, ref int nValidMovesForComputer) {
+            nValidMovesForComputer = 0;
             for (int irow = 0; irow < NUMROWS; irow++) {
                 for (int icol = 0; icol < NUMCOLS; icol++) {
-                    if ((board.cells[irow, icol] & PieceColor.Mask) == m_ComputersColor) {
+                    if ((board.cells[irow, icol] & PieceColor.Mask) == pieceColor) {
                         byte piece = board.cells[irow, icol];
                         int color = piece & PieceColor.Mask;
                         int pieceType = piece & PieceType.Mask;
                         //DebugOut($"ComputeLegalMovesForComputer: looking at {PieceColor.ToString(color)} {PieceType.ToString(pieceType)} at ({irow},{icol}) ");
-                        ComputeLegalMovesForPiece(irow, icol, ref m_ValidMovesForComputer, ref m_nValidMovesForComputer);
+                        ComputeLegalMovesForPiece(irow, icol, ref validMovesForComputer, ref nValidMovesForComputer);
                     }
                 }
             }
-            // Now m_ValidMovesForComputer has all the legal moves we could make.
+            // Now validMovesForComputer has all the legal moves we could make.
+        }
+
+        void ComputeLegalMovesForComputer(ref Board board) {
+            ComputeLegalMovesForSide(ref board, m_ComputersColor, ref m_ValidMovesForComputer, ref m_nValidMovesForComputer);
         }
 
         void DumpValidMoves(string msg, ref int[] aryValidMoves, int nValidMoves) {
@@ -1301,6 +1307,8 @@ namespace ChessR1
             board.bOKCastleQueen[0] = true;
             board.bOKCastleQueen[1] = true;
 
+            board.nCapturedPieces = 0;
+
             // Temporary extra pieces
             //board.cells[2, 1] = PieceColor.Black | PieceType.Rook;
             //board.cells[3, 2] = PieceColor.White | PieceType.King;
@@ -1310,7 +1318,6 @@ namespace ChessR1
             //board.cells[5, 5] = PieceColor.White | PieceType.Queen;
 
             // For testing display of captured pieces.
-            //board.nCapturedPieces = 0;
             //board.capturedPieces[board.nCapturedPieces++] = PieceColor.White | PieceType.Pawn;
             //board.capturedPieces[board.nCapturedPieces++] = PieceColor.White | PieceType.Rook;
             //board.capturedPieces[board.nCapturedPieces++] = PieceColor.Black | PieceType.Bishop;
