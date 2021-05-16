@@ -24,8 +24,8 @@ namespace ChessR1
         Brush brushCapturedPiecesWhite = new SolidBrush(Color.LemonChiffon);
         Brush brushCapturedPiecesBlack = new SolidBrush(Color.SandyBrown);
 
-        float offsetCapturedPiecesTop = 55.0F;
-        float offsetTop = 120.0F;
+        float offsetCapturedPiecesTop = 80.0F;
+        float offsetTop = 150.0F;
         float offsetLeft = 90.0F;
         float squareSize = 120.0F;
         float thickness;
@@ -340,7 +340,7 @@ namespace ChessR1
             // Draw the pieces on top.  
             float x = (float)(offsetLeft);
             float y = (float)(offsetCapturedPiecesTop);
-            DebugOut($"Drawing {strPiecesWhite} at {x},{y}");
+            //DebugOut($"Drawing {strPiecesWhite} at {x},{y}");
             g.DrawString(m_bWhiteOnBottom ? strPiecesWhite : strPiecesBlack, fontCapturedPieces,
                 m_bWhiteOnBottom ? brushCapturedPiecesWhite : brushCapturedPiecesBlack, x, y);
             // Draw the pieces on the bottom.
