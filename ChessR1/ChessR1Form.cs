@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Text;
 using System.Windows.Forms;
 
@@ -52,7 +53,7 @@ namespace ChessR1
         int selectedRowStop = NOT_SELECTED, selectedColStop = NOT_SELECTED;
         // Valid moves for the currently-selected piece.  Each byte contains a row and column
         // as encoded by EncodePositionFromRowAndCol.
-        ulong [] m_ValidMovesForOnePiece = new ulong[64];
+        ulong[] m_ValidMovesForOnePiece = new ulong[64];
         int m_nValidMovesForOnePiece;
         // In this array, each move is encoded into an integer as follows (bit 0 = bottom bit):
         // bits 11-9: Column of "from" square
@@ -62,15 +63,20 @@ namespace ChessR1
         ulong[] m_ValidMovesForComputer = new ulong[256];
         int m_nValidMovesForComputer;
         int[] m_ScoresForValidMovesForComputer = new int[256];
+        ulong[] m_ValidMoves = new ulong[1024];
+        int m_nValidMoves;
         bool m_bWhiteOnBottom;  // true if white is on the bottom of the board (meaning human plays white).
         int m_ComputersColor;  // Color being played by the computer.
         //int m_ComputersDirection;  // -1 for computer moves up the board; 1 for computer moves down
-        static int [] aryKnightMoves = {-2, -1, 1, 2};
+        static int[] aryKnightMoves = { -2, -1, 1, 2 };
         const int POSITION_BITMASK = 63;
         Random m_random = new Random();
         bool m_bGameOver = false;
-        int [] m_aryPieceBaseValue = new int[16];
-        int m_lookaheadPlies = 4;
+        int[] m_aryPieceBaseValue = new int[16];
+        int m_lookaheadPlies = 2;
+        ulong m_DebugBits = 1;
+        const ulong DBG_NORMAL = 1;
+        StreamWriter m_swDebug = new StreamWriter("ChessR1.log");
 
         public ChessR1Form() {
             InitializeComponent();
@@ -99,7 +105,8 @@ namespace ChessR1
         }
 
         public void DebugOut(string msg) {
-            System.Diagnostics.Trace.WriteLine(DateTime.Now + " " + msg);
+            //System.Diagnostics.Trace.WriteLine(DateTime.Now + " " + msg);
+            m_swDebug.WriteLine(msg);
         }
 
         public void SetMessage(string msg) {
@@ -126,7 +133,7 @@ namespace ChessR1
         // Create an integer which encodes a move.
         ulong EncodeMoveFromRowsAndCols(int irowStart, int icolStart, int irowStop, int icolStop) {
             ulong encodedMove = (EncodePositionFromRowAndCol(irowStart, icolStart) << 6) | EncodePositionFromRowAndCol(irowStop, icolStop);
-            //DebugOut($"EncodeMoveFromRowsAndCols: from ({irowStart},{icolStart}) to ({irowStop}, {icolStop}) encoded as {encodedMove} or {Convert.ToString(encodedMove, 8)} octal");
+            //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"EncodeMoveFromRowsAndCols: from ({irowStart},{icolStart}) to ({irowStop}, {icolStop}) encoded as {encodedMove} or {Convert.ToString(encodedMove, 8)} octal");
             return encodedMove;
         }
 
@@ -149,6 +156,12 @@ namespace ChessR1
             return PieceColor.ToString(piece & PieceColor.Mask) + " " + PieceType.ToString(piece & PieceType.Mask);
         }
 
+        string DescribeMove(ulong move) {
+            int irowStart, icolStart, irowStop, icolStop;
+            DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+            return RowColToAlgebraic(irowStart, icolStart) + RowColToAlgebraic(irowStop, icolStop);
+        }
+
         int ColorOfCell(byte cell) {
             return (cell & (int)PieceColor.Mask);
         }
@@ -158,7 +171,7 @@ namespace ChessR1
         }
 
         int ComputeEffectiveColForDisplay(int icol) {
-            return m_bWhiteOnBottom ? icol: NUMCOLS - icol - 1;
+            return m_bWhiteOnBottom ? icol : NUMCOLS - icol - 1;
         }
 
         // Drawing a pawn by computing all the geometric shapes, and trying to 
@@ -281,12 +294,12 @@ namespace ChessR1
             for (int irow = 0; irow < NUMROWS; irow++) {
                 for (int icol = 0; icol < NUMCOLS; icol++) {
                     if (board.cells[irow, icol] != 0) {
-                        //DebugOut($"DrawPieces: drawing {DescribePiece(board.cells[irow, icol])} at {RowColToAlgebraic(irow,icol)}");
-                        DrawPiece(g, board.cells[irow, icol], 
+                        //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"DrawPieces: drawing {DescribePiece(board.cells[irow, icol])} at {RowColToAlgebraic(irow,icol)}");
+                        DrawPiece(g, board.cells[irow, icol],
                             ComputeEffectiveRowForDisplay(irow), ComputeEffectiveColForDisplay(icol));
                         nDrawn++;
                     } else {
-                        DrawPiece(g, 0, 
+                        DrawPiece(g, 0,
                             ComputeEffectiveRowForDisplay(irow), ComputeEffectiveColForDisplay(icol));
                     }
                 }
@@ -325,7 +338,7 @@ namespace ChessR1
         void DrawCapturedPieces(Graphics g) {
             // Draw pieces at top.
             //int desiredColor = m_bWhiteOnBottom ? PieceColor.Black : PieceColor.White;
-            DebugOut($"m_board.nCapturedPieces= {m_board.nCapturedPieces}");
+            //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"m_board.nCapturedPieces= {m_board.nCapturedPieces}");
             string strPiecesWhite = "", strPiecesBlack = "";
             for (int icap = 0; icap < m_board.nCapturedPieces; icap++) {
                 int thisPiece = m_board.capturedPieces[icap];
@@ -340,13 +353,13 @@ namespace ChessR1
             // Draw the pieces on top.  
             float x = (float)(offsetLeft);
             float y = (float)(offsetCapturedPiecesTop);
-            //DebugOut($"Drawing {strPiecesWhite} at {x},{y}");
+            //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Drawing {strPiecesWhite} at {x},{y}");
             g.DrawString(m_bWhiteOnBottom ? strPiecesWhite : strPiecesBlack, fontCapturedPieces,
                 m_bWhiteOnBottom ? brushCapturedPiecesWhite : brushCapturedPiecesBlack, x, y);
             // Draw the pieces on the bottom.
-            y = (float)(offsetTop + (squareSize * NUMROWS) + 0.5* squareSize);
-            DebugOut($"Drawing {strPiecesBlack} at {x},{y}");
-            g.DrawString(m_bWhiteOnBottom ? strPiecesBlack: strPiecesWhite, fontCapturedPieces,
+            y = (float)(offsetTop + (squareSize * NUMROWS) + 0.5 * squareSize);
+            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Drawing {strPiecesBlack} at {x},{y}");
+            g.DrawString(m_bWhiteOnBottom ? strPiecesBlack : strPiecesWhite, fontCapturedPieces,
                 m_bWhiteOnBottom ? brushCapturedPiecesBlack : brushCapturedPiecesWhite, x, y);
         }
 
@@ -381,14 +394,14 @@ namespace ChessR1
 
             // Special-case castling.
             int idxColor = ColorTo0Or1(piece & PieceColor.Mask);
-            if ((PieceType.Mask & piece) == PieceType.King && (Math.Abs(icolStart-icolStop) > 1)) {
+            if ((PieceType.Mask & piece) == PieceType.King && (Math.Abs(icolStart - icolStop) > 1)) {
                 // This is castling.  Also move the rook.  Determine which rook, and where.
                 if (6 == icolStop) {
                     // Kingside castling.  Move rook.
                     board.cells[irowStop, 5] = board.cells[irowStop, 7];
                     board.cells[irowStop, 7] = 0;
                     board.bOKCastleKing[idxColor] = false;
-                } else if(2 == icolStop) {
+                } else if (2 == icolStop) {
                     // Queenside castling.  Move rook. 
                     board.cells[irowStop, 3] = board.cells[irowStop, 0];
                     board.cells[irowStop, 0] = 0;
@@ -412,6 +425,7 @@ namespace ChessR1
             // For now, always promote to Queen.
             if (pieceType == PieceType.Pawn && (irowStop == 0 || irowStop == NUMROWS - 1)) {
                 int newPieceWithColor = PieceType.Queen | (piece & PieceColor.Mask);
+                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Promoting pawn at {RowColToAlgebraic(irowStop, icolStop)} to queen");
                 board.cells[irowStop, icolStop] = (byte)newPieceWithColor;
             }
 
@@ -426,7 +440,7 @@ namespace ChessR1
                 selectedRowStop = irowStop;
                 selectedColStop = icolStop;
                 string captureMsg = oldpiece != 0 ? $"capturing {DescribePiece(oldpiece)}" : "";
-                DebugOut($"Moved {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} {captureMsg}");
+                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Moved {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} {captureMsg}");
             }
         }
 
@@ -479,7 +493,7 @@ namespace ChessR1
                     } else {
                         // It's an opponent's piece.  Is it a threat?
                         otherPiece &= PieceType.Mask;
-                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece 
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece
                             || (PieceType.King == otherPiece && bFirstSquare)) {
                             bIsAttacked = true;
                         } else {
@@ -491,7 +505,7 @@ namespace ChessR1
             }
 
             // Now for vertical, down.
-            for (ir = irow + 1, ic = icol, bFirstSquare=true; ir < NUMROWS; ir++, bFirstSquare=false) {
+            for (ir = irow + 1, ic = icol, bFirstSquare = true; ir < NUMROWS; ir++, bFirstSquare = false) {
                 int otherPiece = board.cells[ir, ic];
                 if (0 != otherPiece) {
                     int otherColor = otherPiece & PieceColor.Mask;
@@ -501,7 +515,7 @@ namespace ChessR1
                     } else {
                         // It's an opponent's piece.  Is it a threat?
                         otherPiece &= PieceType.Mask;
-                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece || 
+                        if (PieceType.Queen == otherPiece || PieceType.Rook == otherPiece ||
                             (PieceType.King == otherPiece && bFirstSquare)) {
                             bIsAttacked = true;
                         } else {
@@ -513,7 +527,7 @@ namespace ChessR1
             }
 
             // Now for horizonal, right.
-            for (ir = irow, ic = icol+1, bFirstSquare = true; ic < NUMCOLS; ic++, bFirstSquare = false) {
+            for (ir = irow, ic = icol + 1, bFirstSquare = true; ic < NUMCOLS; ic++, bFirstSquare = false) {
                 int otherPiece = board.cells[ir, ic];
                 if (0 != otherPiece) {
                     int otherColor = otherPiece & PieceColor.Mask;
@@ -683,7 +697,7 @@ namespace ChessR1
         /// <param name="color">The color of the king we are checking</param>
         /// <returns>true if the king of that color is under attack</returns>
         bool KingIsUnderAttack(ref Board board, int color) {
-            int irow, icol=0, irowKing = -1, icolKing = -1;
+            int irow, icol = 0, irowKing = -1, icolKing = -1;
             // Locate the king.
             int pieceLookingFor = PieceType.King | color;
             bool bFound = false;
@@ -698,9 +712,9 @@ namespace ChessR1
                 }
             }
             if (!bFound) {
-                DebugOut($"** Error: cannot find {PieceColor.ToString(color)} {PieceType.ToString(PieceType.King)}");
+                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"** Error: cannot find {PieceColor.ToString(color)} {PieceType.ToString(PieceType.King)}\n{ComputeTextualBoard()}");
             } else {
-                //DebugOut($"KingIsUnderAttack: found king at {RowColToAlgebraic(irowKing, icolKing)}");
+                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"KingIsUnderAttack: found king at {RowColToAlgebraic(irowKing, icolKing)}");
             }
 
             bool bIsAttacked = IsSquareAttacked(ref board, irowKing, icolKing, color);
@@ -760,8 +774,8 @@ namespace ChessR1
         /// <param name="nMoves">The number of active entries in aryValidMoves.  It may 
         /// have been incremented by the time we return.</param>
         void AddMoveIfKingNotUnderAttack(ref Board board, int myColor,
-            int irowStart, int icolStart, int irowStop, int icolStop, 
-            ref ulong[] aryValidMoves, ref int nMoves) {
+            int irowStart, int icolStart, int irowStop, int icolStop,
+            ref ulong[] aryValidMoves, int offsetValidMoves, ref int nMoves) {
             BoardSaveState boardSaveState = new BoardSaveState();
             // Save the from and to squares.
             SaveBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
@@ -769,10 +783,10 @@ namespace ChessR1
             // Tentatively move the piece.
             MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
             if (!KingIsUnderAttack(ref board, myColor)) {
-                aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(irowStart, icolStart, irowStop, icolStop);
-                DebugOut($"Valid move from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)}");
+                aryValidMoves[offsetValidMoves+nMoves++] = EncodeMoveFromRowsAndCols(irowStart, icolStart, irowStop, icolStop);
+                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Valid move from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)}");
             } else {
-                DebugOut($"Rejected move from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} due to King in check");
+                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Rejected move from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} due to King in check");
             }
             // Undo the tentative move - we don't really want to change the board.
             // mrrtodo: undo castle
@@ -785,7 +799,7 @@ namespace ChessR1
             RestoreBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
         }
 
-        int ComputeLegalMovesForPawn(int irow, int icol, ref ulong[] aryValidMoves, ref int nMoves) {
+        int ComputeLegalMovesForPawn(int irow, int icol, ref ulong[] aryValidMoves, int offsetValidMoves, ref int nMoves) {
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
             if (PieceColor.White == myColor /*&& m_bWhiteOnBottom || PieceColor.Black == myColor && !m_bWhiteOnBottom*/) {
@@ -794,49 +808,49 @@ namespace ChessR1
                 if (irow > 0) {
                     if (0 == m_board.cells[irow - 1, icol]) {
                         // Square is empty.
-                        AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow-1, icol, ref aryValidMoves, ref nMoves);
+                        AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow - 1, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     }
                     if (irow == NUMROWS - 2) {
                         // Pawn is in initial position, so move of 2 squares may be available.
                         if (0 == m_board.cells[irow - 1, icol] && 0 == m_board.cells[irow - 2, icol]) {
-                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow-2, icol, ref aryValidMoves, ref nMoves);
+                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow - 2, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                         }
                     }
                     // Now for captures. 
                     if (icol > 0) {
                         if (0 != m_board.cells[irow - 1, icol - 1] && ColorOfCell(m_board.cells[irow - 1, icol - 1]) != myColor) {
-                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow-1, icol-1, ref aryValidMoves, ref nMoves);
+                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow - 1, icol - 1, ref aryValidMoves, offsetValidMoves, ref nMoves);
                         }
                     }
                     if (icol < NUMCOLS - 1) {
                         if (0 != m_board.cells[irow - 1, icol + 1] && ColorOfCell(m_board.cells[irow - 1, icol + 1]) != myColor) {
-                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow-1, icol+1, ref aryValidMoves, ref nMoves);
+                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow - 1, icol + 1, ref aryValidMoves, offsetValidMoves, ref nMoves);
                         }
                     }
                 }
             } else {
                 // Moves are from top to bottom.
                 // Move one ahead?
-                if (irow < NUMROWS-1) {
+                if (irow < NUMROWS - 1) {
                     if (0 == m_board.cells[irow + 1, icol]) {
                         // Square is empty.
-                        AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow + 1, icol, ref aryValidMoves, ref nMoves);
+                        AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow + 1, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     }
                     if (irow == 1) {
                         // Pawn is in initial position, so move of 2 squares may be available.
                         if (0 == m_board.cells[irow + 1, icol] && 0 == m_board.cells[irow + 2, icol]) {
-                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow+2, icol, ref aryValidMoves, ref nMoves);
+                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow + 2, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                         }
                     }
                     // Now for captures. 
                     if (icol > 0) {
                         if (0 != m_board.cells[irow + 1, icol - 1] && ColorOfCell(m_board.cells[irow + 1, icol - 1]) != myColor) {
-                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow+1, icol-1, ref aryValidMoves, ref nMoves);
+                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow + 1, icol - 1, ref aryValidMoves, offsetValidMoves, ref nMoves);
                         }
                     }
                     if (icol < NUMCOLS - 1) {
                         if (0 != m_board.cells[irow + 1, icol + 1] && ColorOfCell(m_board.cells[irow + 1, icol + 1]) != myColor) {
-                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow+1, icol+1, ref aryValidMoves, ref nMoves);
+                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow + 1, icol + 1, ref aryValidMoves, offsetValidMoves, ref nMoves);
                         }
                     }
                 }
@@ -845,7 +859,7 @@ namespace ChessR1
             return nMoves;
         }
 
-        void ComputeLegalMovesForKnight(int irow, int icol, ref ulong[] aryValidMoves, ref int nMoves) {
+        void ComputeLegalMovesForKnight(int irow, int icol, ref ulong[] aryValidMoves, int offsetValidMoves, ref int nMoves) {
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
 
@@ -870,16 +884,16 @@ namespace ChessR1
                             // MRRToDo: check for discovered check, stalemate, etc.
                             bMoveOK = true;
                         }
-                        //DebugOut($"Knight at ({irow},{icol}) to move to ({newRow},{newCol}): myColor={myColor} otherColor={otherColor} bMoveOK={bMoveOK}");
+                        //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Knight at ({irow},{icol}) to move to ({newRow},{newCol}): myColor={myColor} otherColor={otherColor} bMoveOK={bMoveOK}");
                         if (bMoveOK) {
-                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, newRow, newCol, ref aryValidMoves, ref nMoves);
+                            AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, newRow, newCol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                         }
                     }
                 }
             }
         }
 
-        void ComputeLegalMovesForRook(int irow, int icol, ref ulong[] aryValidMoves, ref int nMoves) {
+        void ComputeLegalMovesForRook(int irow, int icol, ref ulong[] aryValidMoves, int offsetValidMoves, ref int nMoves) {
             int ir, ic;
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
@@ -893,14 +907,14 @@ namespace ChessR1
 
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
 
                 } else {
                     // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
@@ -911,13 +925,13 @@ namespace ChessR1
                 otherPiece &= PieceType.Mask;
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
                 } else {
                     // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, irow, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
@@ -930,13 +944,13 @@ namespace ChessR1
 
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
                 } else {
                     // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
@@ -947,19 +961,19 @@ namespace ChessR1
 
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
                 } else {
                     // Opponent's square.  Let's say it's OK, though we need to flesh this out more.
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
         }
 
-        void ComputeLegalMovesForBishop(int irow, int icol, ref ulong[] aryValidMoves, ref int nMoves) {
+        void ComputeLegalMovesForBishop(int irow, int icol, ref ulong[] aryValidMoves, int offsetValidMoves, ref int nMoves) {
             int ir, ic;
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
@@ -974,13 +988,13 @@ namespace ChessR1
 
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
                 } else {
                     // Opponent's square.  
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
@@ -992,13 +1006,13 @@ namespace ChessR1
                 otherPiece &= PieceType.Mask;
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
                 } else {
                     // Opponent's square.  
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
@@ -1011,12 +1025,12 @@ namespace ChessR1
 
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
                 } else {
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
@@ -1029,19 +1043,19 @@ namespace ChessR1
 
                 if (0 == otherPiece) {
                     // Empty square; OK
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                 } else if (myColor == otherColor) {
                     // We have gotten to one of our own pieces.  We can't go further in this direction.
                     break;
                 } else {
                     // Opponent's square.  
-                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                    AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 }
             }
         }
 
-        void ComputeLegalMovesForKing(int irow, int icol, ref ulong[] aryValidMoves, ref int nMoves) {
+        void ComputeLegalMovesForKing(int irow, int icol, ref ulong[] aryValidMoves, int offsetValidMoves, ref int nMoves) {
             int ir, ic;
             int piece = m_board.cells[irow, icol];
             int myColor = piece & PieceColor.Mask;
@@ -1064,7 +1078,7 @@ namespace ChessR1
                     otherPiece &= PieceType.Mask;
                     if (0 == otherPiece || myColor != otherColor) {
                         // Empty square or capturing other piece.  
-                        AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, ref nMoves);
+                        AddMoveIfKingNotUnderAttack(ref m_board, myColor, irow, icol, ir, ic, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     }
                 }
             }
@@ -1079,8 +1093,8 @@ namespace ChessR1
                         // Squares between are empty.  Are they attacked?
                         if (!IsSquareAttacked(ref m_board, NUMROWS - 1, 5, myColor) &&
                             !IsSquareAttacked(ref m_board, NUMROWS - 1, 6, myColor)) {
-                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(NUMROWS - 1, 4, NUMROWS - 1, 6);
-                            DebugOut($"Adding kingside castling as legal move for white");
+                            aryValidMoves[offsetValidMoves+nMoves++] = EncodeMoveFromRowsAndCols(NUMROWS - 1, 4, NUMROWS - 1, 6);
+                            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Adding kingside castling as legal move for white");
                         }
                     }
                 } else {
@@ -1090,8 +1104,8 @@ namespace ChessR1
                         // Squares between are empty.  Are they attacked?
                         if (!IsSquareAttacked(ref m_board, 0, 5, myColor) &&
                             !IsSquareAttacked(ref m_board, 0, 6, myColor)) {
-                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(0, 4, 0, 6);
-                            DebugOut($"Adding kingside castling as legal move for black");
+                            aryValidMoves[offsetValidMoves+nMoves++] = EncodeMoveFromRowsAndCols(0, 4, 0, 6);
+                            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Adding kingside castling as legal move for black");
                         }
                     }
                 }
@@ -1108,8 +1122,8 @@ namespace ChessR1
                         if (!IsSquareAttacked(ref m_board, NUMROWS - 1, 1, myColor) &&
                             !IsSquareAttacked(ref m_board, NUMROWS - 1, 2, myColor) &&
                             !IsSquareAttacked(ref m_board, NUMROWS - 1, 3, myColor)) {
-                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(NUMROWS - 1, 4, NUMROWS - 1, 2);
-                            DebugOut($"Adding queenside castling as legal move for white");
+                            aryValidMoves[offsetValidMoves+nMoves++] = EncodeMoveFromRowsAndCols(NUMROWS - 1, 4, NUMROWS - 1, 2);
+                            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Adding queenside castling as legal move for white");
                         }
                     }
                 } else {
@@ -1121,43 +1135,43 @@ namespace ChessR1
                         if (!IsSquareAttacked(ref m_board, 0, 1, myColor) &&
                             !IsSquareAttacked(ref m_board, 0, 2, myColor) &&
                             !IsSquareAttacked(ref m_board, 0, 3, myColor)) {
-                            aryValidMoves[nMoves++] = EncodeMoveFromRowsAndCols(0, 4, 0, 2);
-                            DebugOut($"Adding queenside castling as legal move for black");
+                            aryValidMoves[offsetValidMoves+nMoves++] = EncodeMoveFromRowsAndCols(0, 4, 0, 2);
+                            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Adding queenside castling as legal move for black");
                         }
                     }
                 }
             }
         }
 
-        void ComputeLegalMovesForPiece(int irow, int icol, ref ulong[] aryValidMoves, ref int nMoves) {
-            //DebugOut($"ComputeLegalMovesForPiece called for {DescribePiece(m_board.cells[irow,icol])} at {RowColToAlgebraic(irow,icol)}");
+        void ComputeLegalMovesForPiece(int irow, int icol, ref ulong[] aryValidMoves, int offsetValidMoves, ref int nMoves) {
+            //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ComputeLegalMovesForPiece called for {DescribePiece(m_board.cells[irow,icol])} at {RowColToAlgebraic(irow,icol)}");
             int pieceType = m_board.cells[irow, icol];
             pieceType &= PieceType.Mask;
             switch (pieceType) {
                 case PieceType.Rook:
-                    ComputeLegalMovesForRook(irow, icol, ref aryValidMoves, ref nMoves);
+                    ComputeLegalMovesForRook(irow, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 case PieceType.Pawn:
-                    ComputeLegalMovesForPawn(irow, icol, ref aryValidMoves, ref nMoves);
+                    ComputeLegalMovesForPawn(irow, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 case PieceType.Knight:
-                    ComputeLegalMovesForKnight(irow, icol, ref aryValidMoves, ref nMoves);
+                    ComputeLegalMovesForKnight(irow, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 case PieceType.Bishop:
-                    ComputeLegalMovesForBishop(irow, icol, ref aryValidMoves, ref nMoves);
+                    ComputeLegalMovesForBishop(irow, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 case PieceType.Queen:
-                    ComputeLegalMovesForRook(irow, icol, ref aryValidMoves, ref nMoves);
-                    ComputeLegalMovesForBishop(irow, icol, ref aryValidMoves, ref nMoves);
+                    ComputeLegalMovesForRook(irow, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
+                    ComputeLegalMovesForBishop(irow, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
                 case PieceType.King:
-                    ComputeLegalMovesForKing(irow, icol, ref aryValidMoves, ref nMoves);
+                    ComputeLegalMovesForKing(irow, icol, ref aryValidMoves, offsetValidMoves, ref nMoves);
                     break;
             }
         }
 
-        void ComputeLegalMovesForSide(ref Board board, int pieceColor, 
-            ref ulong[] validMovesForComputer, ref int nValidMovesForComputer) {
+        void ComputeLegalMovesForSide(ref Board board, int pieceColor,
+            ref ulong[] validMovesForComputer, int offsetValidMoves, ref int nValidMovesForComputer) {
             nValidMovesForComputer = 0;
             for (int irow = 0; irow < NUMROWS; irow++) {
                 for (int icol = 0; icol < NUMCOLS; icol++) {
@@ -1165,8 +1179,8 @@ namespace ChessR1
                         byte piece = board.cells[irow, icol];
                         int color = piece & PieceColor.Mask;
                         int pieceType = piece & PieceType.Mask;
-                        //DebugOut($"ComputeLegalMovesForComputer: looking at {PieceColor.ToString(color)} {PieceType.ToString(pieceType)} at ({irow},{icol}) ");
-                        ComputeLegalMovesForPiece(irow, icol, ref validMovesForComputer, ref nValidMovesForComputer);
+                        //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ComputeLegalMovesForComputer: looking at {PieceColor.ToString(color)} {PieceType.ToString(pieceType)} at ({irow},{icol}) ");
+                        ComputeLegalMovesForPiece(irow, icol, ref validMovesForComputer, offsetValidMoves, ref nValidMovesForComputer);
                     }
                 }
             }
@@ -1174,19 +1188,19 @@ namespace ChessR1
         }
 
         void ComputeLegalMovesForComputer(ref Board board) {
-            ComputeLegalMovesForSide(ref board, m_ComputersColor, ref m_ValidMovesForComputer, ref m_nValidMovesForComputer);
+            ComputeLegalMovesForSide(ref board, m_ComputersColor, ref m_ValidMovesForComputer, 0, ref m_nValidMovesForComputer);
         }
 
         void DumpValidMoves(string msg, ref ulong[] aryValidMoves, int nValidMoves) {
             string strValidMoves = "";
-            for(int j = 0; j<nValidMoves; j++) {
+            for (int j = 0; j < nValidMoves; j++) {
                 var move = aryValidMoves[j];
                 int irowStart, icolStart, irowStop, icolStop;
                 DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
                 strValidMoves += " " + RowColToAlgebraic(irowStart, icolStart);
                 strValidMoves += RowColToAlgebraic(irowStop, icolStop);
             }
-            DebugOut(msg + ":" + strValidMoves);
+            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut(msg + ":" + strValidMoves);
         }
 
         // Evaluate a board position, returning a score that is positive if things look
@@ -1197,10 +1211,10 @@ namespace ChessR1
                 for (int icol = 0; icol < NUMROWS; icol++) {
                     score += m_aryPieceBaseValue[board.cells[irow, icol]];
                     int piece = board.cells[irow, icol];
-                    //DebugOut($"EvaluateBoard: {DescribePiece(piece)} at {RowColToAlgebraic(irow,icol)} has score {m_aryPieceBaseValue[board.cells[irow, icol]]}");
+                    //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"EvaluateBoard: {DescribePiece(piece)} at {RowColToAlgebraic(irow,icol)} has score {m_aryPieceBaseValue[board.cells[irow, icol]]}");
                 }
             }
-            //DebugOut($"EvaluateBoard returning {score}");
+            //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"EvaluateBoard returning {score}");
             return score;
         }
 
@@ -1216,7 +1230,7 @@ namespace ChessR1
                 // Store the results in m_ScoresForValidMovesForComputer.
                 int irowStart = -1, icolStart = -1, irowStop = -1, icolStop = -1;
                 int score;
-                ulong move=0;
+                ulong move = 0;
                 BoardSaveState boardSaveState = new BoardSaveState();
                 for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
                     move = aryValidMoves[idxMove];
@@ -1251,7 +1265,7 @@ namespace ChessR1
 
                 // Choose a move at random from those tied with the highest score.
                 int nthRandom = m_random.Next(nWithHighScore);
-                DebugOut($"I found {nWithHighScore} moves with best score {highScore}; will choose # {nthRandom}");
+                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"I found {nWithHighScore} moves with best score {highScore}; will choose # {nthRandom}");
                 for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
                     if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
                         if (nthRandom-- <= 0) {
@@ -1263,8 +1277,8 @@ namespace ChessR1
 
                 DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
                 int piece = board.cells[irowStart, icolStart];
-                //DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
-                DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {highScore}");
+                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
+                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {highScore}");
                 MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, true);
             } else {
                 if (KingIsUnderAttack(ref m_board, m_ComputersColor)) {
@@ -1274,6 +1288,65 @@ namespace ChessR1
                 }
                 m_bGameOver = true;
             }
+        }
+
+        long AdjustScoreForSide(long score, int colorMoving) {
+            if (m_ComputersColor == colorMoving) score = -score;
+            return score;
+        }
+
+        // Exit:  Returns both the score of the best move so far, and the move, encoded as:
+        //        score << 32 | move
+        long ChooseMove(ref Board board, int colorMoving, int iply, int offsetValidMoves) {
+            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMove called for color {colorMoving} ply {iply} offsetValidMoves {offsetValidMoves}");
+            int nValidMoves = 0;
+            ComputeLegalMovesForSide(ref board, colorMoving, ref m_ValidMoves, offsetValidMoves, ref nValidMoves);
+            bool maximize;
+            long bestScore;
+            // For now, assume computer plays Black.
+            if (1 == (iply & 1)) {
+                // We should find the most negative score - favorable for Black.
+                maximize = false;
+                bestScore = 99999;
+            } else {
+                maximize = true;
+                bestScore = -99999;
+            }
+            long score;
+            ulong bestMove = 0;
+            BoardSaveState boardSaveState = new BoardSaveState();
+            int irowStart = -1, icolStart = -1, irowStop = -1, icolStop = -1;
+            for (int imove = 0; imove < nValidMoves; imove++) {
+                var move = m_ValidMoves[imove + offsetValidMoves];
+                DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Considering move {RowColToAlgebraic(irowStart, icolStart)}{RowColToAlgebraic(irowStop, icolStop)}");
+                SaveBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
+                MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
+                if (iply < m_lookaheadPlies) {
+                    score = ChooseMove(ref board, PieceColor.Black ^ colorMoving, iply + 1, offsetValidMoves + nValidMoves);
+                    score = (score >> 32);
+                } else {
+                    // Evaluate board only at leaf nodes.
+                    score = EvaluateBoard(ref board);
+                    // Insert score into validMoves
+                }
+                if (0 != (m_DebugBits & DBG_NORMAL)) DebugOut($"Score for move {imove}: {DescribeMove(move)} ply {iply} was {score}; best so far={bestScore} maximize={maximize}");
+                RestoreBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
+                if (maximize) {
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                } else {
+                    if(score < bestScore) {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                }
+            }
+            long result = (bestScore << 32) | (long)bestMove;
+            if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMove for color {colorMoving} ply {iply} returning best score {bestScore} bestMove {DescribeMove(bestMove)}");
+            return result;
         }
 
         void CreateInitialBoard(ref Board board) {
@@ -1392,20 +1465,33 @@ namespace ChessR1
             Application.Exit();
         }
 
-        private void computerPlaysBlackToolStripMenuItem_Click(object sender, EventArgs e)
-        {
+        private void computerPlaysBlackToolStripMenuItem_Click(object sender, EventArgs e) {
             SetComputersColor(PieceColor.Black);
             InitializeGame();
             Invalidate();
         }
 
-        private void computerPlaysWhiteToolStripMenuItem_Click(object sender, EventArgs e)
-        {
+        private void computerPlaysWhiteToolStripMenuItem_Click(object sender, EventArgs e) {
             SetComputersColor(PieceColor.White);
             InitializeGame();
             ComputeLegalMovesForComputer(ref m_board);
             ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
             Invalidate();
+        }
+
+        private void ChessR1Form_FormClosing(object sender, FormClosingEventArgs e) {
+            m_swDebug.Flush();
+        }
+
+        private void settingsToolStripMenuItem_Click(object sender, EventArgs e) {
+            FormSettings formSettings = new FormSettings();
+            formSettings.Controls["textBoxDebugMask"].Text = m_DebugBits.ToString();
+            formSettings.Controls["numericUpDownLookahead"].Text = m_lookaheadPlies.ToString();
+            DialogResult result = formSettings.ShowDialog();
+            if (result == DialogResult.OK) {
+                ulong.TryParse(formSettings.Controls["textBoxDebugMask"].Text, out m_DebugBits);
+                int.TryParse(formSettings.Controls["numericUpDownLookahead"].Text, out m_lookaheadPlies);
+            }
         }
 
         private void MouseRightClickEvent(object sender, MouseEventArgs e, int curRow, int curCol) {
@@ -1420,8 +1506,8 @@ namespace ChessR1
             if (NOT_SELECTED == selectedColStop && NOT_SELECTED != selectedColStart) {
                 // A piece had already been selected, so recalculate its legal moves.
                 m_nValidMovesForOnePiece = 0;
-                ComputeLegalMovesForPiece(selectedRowStart, selectedColStart, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
-                DebugOut($"After modifying board, recalculated {m_nValidMovesForOnePiece} moves for piece at ({selectedRowStart},{selectedColStart})");
+                ComputeLegalMovesForPiece(selectedRowStart, selectedColStart, ref m_ValidMovesForOnePiece, 0, ref m_nValidMovesForOnePiece);
+                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"After modifying board, recalculated {m_nValidMovesForOnePiece} moves for piece at ({selectedRowStart},{selectedColStart})");
 
             }
             Invalidate();
@@ -1429,6 +1515,7 @@ namespace ChessR1
 
         private void ChessR1Form_MouseDown(object sender, MouseEventArgs e) {
             if (m_bGameOver) return;
+            m_swDebug.Flush();
             bool bWithinASquare = false;
             int prevCol = selectedColStart;
             int prevRow = selectedRowStart;
@@ -1457,8 +1544,8 @@ namespace ChessR1
 
             if (bWithinASquare) {
                 if (!bASquareWasAlreadySelected) {
-                    DebugOut($"MouseDown: at algebraic {RowColToAlgebraic(curRow, curCol)}");
-                    ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
+                    if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"MouseDown: at algebraic {RowColToAlgebraic(curRow, curCol)}");
+                    ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, 0, ref m_nValidMovesForOnePiece);
                 }
             }
 
@@ -1484,11 +1571,11 @@ namespace ChessR1
                             if ((m_ValidMovesForOnePiece[j] & POSITION_BITMASK) == desiredLoc) {
                                 // Yes, it's legal to move this piece here, so move it.
                                 //byte pieceBeingMoved = m_board.cells[selectedRowStart, selectedColStart];
-                                ////DebugOut($"We will move {pieceBeingMoved} from row {selectedRowStart} col {selectedColStart} to row {curRow} col {curCol}");
+                                ////if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"We will move {pieceBeingMoved} from row {selectedRowStart} col {selectedColStart} to row {curRow} col {curCol}");
                                 //m_board.cells[curRow, curCol] = pieceBeingMoved;
                                 //m_board.cells[selectedRowStart, selectedColStart] = 0;
                                 MovePiece(ref m_board, selectedRowStart, selectedColStart, curRow, curCol, true);
-                                DebugOut($"After human move, board is now\r\n{ComputeTextualBoard()}");
+                                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"After human move, board is now\r\n{ComputeTextualBoard()}");
 
                                 selectedRowStop = curRow;
                                 selectedColStop = curCol;
@@ -1497,13 +1584,26 @@ namespace ChessR1
                                 m_nValidMovesForOnePiece = 0;
                                 bDidMove = true;
                                 UseWaitCursor = true;
+#if false
                                 ComputeLegalMovesForComputer(ref m_board);
                                 ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+#else
+                                long result = ChooseMove(ref m_board, m_ComputersColor, 1, 0);
+                                int score = (int)(result >> 32);
+                                ulong move = (0xffffffff & (ulong)result);
+                                int irowStart, icolStart, irowStop, icolStop;
+                                DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+                                int piece = m_board.cells[irowStart, icolStart];
+                                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
+                                if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {score}");
+                                MovePiece(ref m_board, irowStart, icolStart, irowStop, icolStop, true);
+
+#endif
                                 UseWaitCursor = false;
-                                //DebugOut($"MouseDown: board is now\r\n{ComputeTextualBoard()}");
+                                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"MouseDown: board is now\r\n{ComputeTextualBoard()}");
                                 break;
                             } else {
-                                //DebugOut($"Can't move: desired={desiredLoc} m_ValidMoves[j]={m_ValidMoves[j]}");
+                                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"Can't move: desired={desiredLoc} m_ValidMoves[j]={m_ValidMoves[j]}");
                             }
                         }
                         if (!bDidMove) {
@@ -1515,7 +1615,7 @@ namespace ChessR1
                             selectedRowStop = NOT_SELECTED;
                             selectedColStop = NOT_SELECTED;
                             m_nValidMovesForOnePiece = 0;
-                            ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
+                            ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, 0, ref m_nValidMovesForOnePiece);
                         }
                     } else {
                         // It's the same square.
@@ -1528,7 +1628,7 @@ namespace ChessR1
                     selectedColStart = curCol;
                     selectedRowStop = NOT_SELECTED;
                     selectedColStop = NOT_SELECTED;
-                    ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, ref m_nValidMovesForOnePiece);
+                    ComputeLegalMovesForPiece(curRow, curCol, ref m_ValidMovesForOnePiece, 0, ref m_nValidMovesForOnePiece);
                 }
             } else {
                 selectedRowStart = NOT_SELECTED;
@@ -1539,10 +1639,11 @@ namespace ChessR1
             }
 
             //if (NOT_SELECTED == selectedColStart) {
-            //    DebugOut("Click detected off the board");
+            //    if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut("Click detected off the board");
             //}
             Invalidate();
-            //DebugOut($"MouseDown end: board is now\r\n{ComputeTextualBoard()}");
+            //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"MouseDown end: board is now\r\n{ComputeTextualBoard()}");
+            m_swDebug.Flush();
         }
     }
 }

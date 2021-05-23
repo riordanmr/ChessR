@@ -33,6 +33,7 @@ namespace ChessR1
             this.computerPlaysBlackToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.computerPlaysWhiteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.settingsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -55,7 +56,7 @@ namespace ChessR1
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.Padding = new System.Windows.Forms.Padding(8, 2, 0, 2);
-            this.menuStrip1.Size = new System.Drawing.Size(1467, 40);
+            this.menuStrip1.Size = new System.Drawing.Size(1467, 42);
             this.menuStrip1.TabIndex = 1;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -63,9 +64,10 @@ namespace ChessR1
             // 
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.newToolStripMenuItem,
+            this.settingsToolStripMenuItem,
             this.exitToolStripMenuItem});
             this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
-            this.fileToolStripMenuItem.Size = new System.Drawing.Size(97, 36);
+            this.fileToolStripMenuItem.Size = new System.Drawing.Size(97, 38);
             this.fileToolStripMenuItem.Text = "&Game";
             // 
             // newToolStripMenuItem
@@ -74,7 +76,7 @@ namespace ChessR1
             this.computerPlaysBlackToolStripMenuItem,
             this.computerPlaysWhiteToolStripMenuItem});
             this.newToolStripMenuItem.Name = "newToolStripMenuItem";
-            this.newToolStripMenuItem.Size = new System.Drawing.Size(212, 44);
+            this.newToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
             this.newToolStripMenuItem.Text = "&New...";
             // 
             // computerPlaysBlackToolStripMenuItem
@@ -95,9 +97,16 @@ namespace ChessR1
             // 
             this.exitToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(212, 44);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
+            // 
+            // settingsToolStripMenuItem
+            // 
+            this.settingsToolStripMenuItem.Name = "settingsToolStripMenuItem";
+            this.settingsToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
+            this.settingsToolStripMenuItem.Text = "&Settings...";
+            this.settingsToolStripMenuItem.Click += new System.EventHandler(this.settingsToolStripMenuItem_Click);
             // 
             // ChessR1Form
             // 
@@ -111,6 +120,7 @@ namespace ChessR1
             this.Margin = new System.Windows.Forms.Padding(4);
             this.Name = "ChessR1Form";
             this.Text = "ChessR1";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.ChessR1Form_FormClosing);
             this.Load += new System.EventHandler(this.ChessR1Form_Load);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.ChessR1Form_Paint);
             this.MouseDown += new System.Windows.Forms.MouseEventHandler(this.ChessR1Form_MouseDown);
@@ -130,6 +140,7 @@ namespace ChessR1
         private System.Windows.Forms.ToolStripMenuItem newToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem computerPlaysBlackToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem computerPlaysWhiteToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem settingsToolStripMenuItem;
     }
 }
 
