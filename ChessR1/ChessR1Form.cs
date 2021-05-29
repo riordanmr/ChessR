@@ -6,6 +6,8 @@
 // will not necessarily be its final form. 
 // Mark Riordan  23-JAN-2021
 
+//#define USING_OUTPUTDEBUGSTRING
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -107,9 +109,12 @@ namespace ChessR1
         }
 
         public void DebugOut(string msg) {
-            //System.Diagnostics.Trace.WriteLine(DateTime.Now + " " + msg);
+#if USING_OUTPUTDEBUGSTRING
+            System.Diagnostics.Trace.WriteLine(DateTime.Now + " " + msg);
+#else
             string now = DateTime.Now.ToString("yyyy-MM-dd HHH:mm:ss.fff");
             m_swDebug.WriteLine(now + " " + msg);
+#endif
         }
 
         public void SetMessage(string msg) {
@@ -701,23 +706,41 @@ namespace ChessR1
         /// <returns>true if the king of that color is under attack</returns>
         bool KingIsUnderAttack(ref Board board, int color) {
             int irow, icol = 0, irowKing = -1, icolKing = -1;
-            // Locate the king.
-            int pieceLookingFor = PieceType.King | color;
             bool bFound = false;
-            for (irow = 0; irow < NUMROWS && !bFound; irow++) {
-                for (icol = 0; icol < NUMCOLS; icol++) {
-                    if (pieceLookingFor == (board.cells[irow, icol] & (PieceType.Mask | PieceColor.Mask))) {
-                        bFound = true;
-                        irowKing = irow;
-                        icolKing = icol;
-                        break;
+            // Locate the king.
+            // Start by looking in the cached location.
+            int pieceLookingFor = PieceType.King | color;
+            if (PieceColor.White == color) {
+                irowKing = (int)board.cachedWhiteKingPosition & 0x7;
+                icolKing = (int)(board.cachedWhiteKingPosition >> 3);
+            } else {
+                irowKing = (int)board.cachedBlackKingPosition & 0x7;
+                icolKing = (int)(board.cachedBlackKingPosition >> 3);
+            }
+            if (pieceLookingFor == (board.cells[irowKing, icolKing] & (PieceType.Mask | PieceColor.Mask))) {
+                bFound = true;
+                //if (0 != (m_DebugBits & 0xff)) DebugOut($"Found king at cached location");
+            } else {
+                //if (0 != (m_DebugBits & 0xff)) DebugOut($"Did not find king at cached location");
+                for (irow = 0; irow < NUMROWS && !bFound; irow++) {
+                    for (icol = 0; icol < NUMCOLS; icol++) {
+                        if (pieceLookingFor == (board.cells[irow, icol] & (PieceType.Mask | PieceColor.Mask))) {
+                            bFound = true;
+                            irowKing = irow;
+                            icolKing = icol;
+                            break;
+                        }
                     }
                 }
-            }
-            if (!bFound) {
-                if (0!=(m_DebugBits & DBG_MISC)) DebugOut($"** Error: cannot find {PieceColor.ToString(color)} {PieceType.ToString(PieceType.King)}\n{ComputeTextualBoard()}");
-            } else {
-                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"KingIsUnderAttack: found king at {RowColToAlgebraic(irowKing, icolKing)}");
+                if (!bFound) {
+                    if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"** Error: cannot find {PieceColor.ToString(color)} {PieceType.ToString(PieceType.King)}\n{ComputeTextualBoard()}");
+                } else {
+                    if (PieceColor.White == color) {
+                        board.cachedWhiteKingPosition = (uint)(NUMCOLS * icolKing + irowKing);
+                    } else {
+                        board.cachedBlackKingPosition = (uint)(NUMCOLS * icolKing + irowKing);
+                    }
+                }
             }
 
             bool bIsAttacked = IsSquareAttacked(ref board, irowKing, icolKing, color);

@@ -68,6 +68,8 @@ namespace ChessR1
         // The indices to the OKCastle arrays are 0 for white and 1 for black.
         public bool[] bOKCastleQueen = new bool[] { true, true };
         public bool[] bOKCastleKing = new bool[] { true, true };
+        public uint cachedWhiteKingPosition = 0;
+        public uint cachedBlackKingPosition = 0;
     };
 
     static class Program
