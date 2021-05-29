@@ -1236,7 +1236,7 @@ namespace ChessR1
             for (int irow = 0; irow < NUMROWS; irow++) {
                 for (int icol = 0; icol < NUMROWS; icol++) {
                     score += m_aryPieceBaseValue[board.cells[irow, icol]];
-                    int piece = board.cells[irow, icol];
+                    //int piece = board.cells[irow, icol];
                     //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"EvaluateBoard: {DescribePiece(piece)} at {RowColToAlgebraic(irow,icol)} has score {m_aryPieceBaseValue[board.cells[irow, icol]]}");
                 }
             }
