@@ -1244,6 +1244,7 @@ namespace ChessR1
             return score;
         }
 
+#if false
         void ChooseAndMakeMoveForComputer(ref Board board, ref ulong[] aryValidMoves, int nValidMoves) {
             if (nValidMoves > 0) {
                 DumpValidMoves("Valid moves for computer", ref aryValidMoves, nValidMoves);
@@ -1315,11 +1316,7 @@ namespace ChessR1
                 m_bGameOver = true;
             }
         }
-
-        long AdjustScoreForSide(long score, int colorMoving) {
-            if (m_ComputersColor == colorMoving) score = -score;
-            return score;
-        }
+#endif
 
         // Exit:  Returns both the score of the best move so far, and the move, encoded as:
         //        score << 32 | move
@@ -1500,8 +1497,15 @@ namespace ChessR1
         private void computerPlaysWhiteToolStripMenuItem_Click(object sender, EventArgs e) {
             SetComputersColor(PieceColor.White);
             InitializeGame();
-            ComputeLegalMovesForComputer(ref m_board);
-            ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+            //ComputeLegalMovesForComputer(ref m_board);
+            //ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+            long result = ChooseMove(ref m_board, PieceColor.White, 1, 0);
+            int irowStart, icolStart, irowStop, icolStop;
+            ulong move = (0xffffffff & (ulong)result);
+            DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+            int piece = m_board.cells[irowStart, icolStart];
+            MovePiece(ref m_board, irowStart, icolStart, irowStop, icolStop, true);
+
             Invalidate();
         }
 
