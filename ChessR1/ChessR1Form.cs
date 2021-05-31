@@ -1329,9 +1329,9 @@ namespace ChessR1
             ComputeLegalMovesForSide(ref board, colorMoving, ref m_ValidMoves, offsetValidMoves, ref nValidMoves);
             bool maximize;
             long bestScore;
-            // For now, assume computer plays Black.
-            if (1 == (iply & 1)) {
-                // We should find the most negative score - favorable for Black.
+            if (((1 == (iply & 1)) && m_ComputersColor==PieceColor.Black) ||
+               ((0 == (iply & 1)) && m_ComputersColor == PieceColor.White)) {
+                // We should find the most negative score.
                 maximize = false;
                 bestScore = 99999;
             } else {
