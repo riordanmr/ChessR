@@ -339,6 +339,10 @@ namespace ChessR1
             }
         }
 
+        int OtherPieceColor(int color) {
+            return PieceColor.Mask - color;
+        }
+
         void DrawTextualBoard() {
             //textBoxBoard.Text = ComputeTextualBoard();
         }
@@ -1311,6 +1315,50 @@ namespace ChessR1
         }
 #endif
 
+        void ChooseAndMakeMoveForComputer(ref Board board) {
+            UseWaitCursor = true;
+#if false
+            ComputeLegalMovesForComputer(ref m_board);
+            ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+#else
+            m_stopwatch.Reset();
+            m_stopwatch.Start();
+            long result = ChooseMove(ref m_board, m_ComputersColor, 1, 0);
+            m_stopwatch.Stop();
+            var elapsed = m_stopwatch.Elapsed;
+            var strElapsed = String.Format("{0:00}:{1:00}:{2:00}.{3:000}", elapsed.Hours, elapsed.Minutes, elapsed.Seconds, elapsed.Milliseconds);
+            if (RESULT_NO_VALID_MOVES == result) {
+                if (KingIsUnderAttack(ref m_board, m_ComputersColor)) {
+                    SetMessage("Human wins!");
+                } else {
+                    SetMessage("Stalemate!");
+                }
+                m_bGameOver = true;
+            } else {
+                int score = (int)(result >> 32);
+                ulong move = (0xffffffff & (ulong)result);
+                int irowStart, icolStart, irowStop, icolStop;
+                DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+                int piece = m_board.cells[irowStart, icolStart];
+                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
+                if (0 != (m_DebugBits & DBG_MOVES)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {score}; took {strElapsed}");
+                MovePiece(ref m_board, irowStart, icolStart, irowStop, icolStop, true);
+            }
+#endif
+            int nValidMovesForHuman = 0;
+            ComputeLegalMovesForSide(ref m_board, OtherPieceColor(m_ComputersColor), ref m_ValidMoves, 0, ref nValidMovesForHuman);
+            if (0 == nValidMovesForHuman) {
+                m_bGameOver = true;
+                if (KingIsUnderAttack(ref m_board, PieceColor.Mask - m_ComputersColor)) {
+                    SetMessage("Computer wins!");
+                } else {
+                    SetMessage("Stalemate!");
+                }
+            }
+            UseWaitCursor = false;
+
+        }
+
         // Exit:  Returns both the score of the best move so far, and the move, encoded as:
         //        score << 32 | move
         long ChooseMove(ref Board board, int colorMoving, int iply, int offsetValidMoves) {
@@ -1495,12 +1543,16 @@ namespace ChessR1
             InitializeGame();
             //ComputeLegalMovesForComputer(ref m_board);
             //ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
+#if false
             long result = ChooseMove(ref m_board, PieceColor.White, 1, 0);
             int irowStart, icolStart, irowStop, icolStop;
             ulong move = (0xffffffff & (ulong)result);
             DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
             int piece = m_board.cells[irowStart, icolStart];
             MovePiece(ref m_board, irowStart, icolStart, irowStop, icolStop, true);
+#else
+            ChooseAndMakeMoveForComputer(ref m_board);
+#endif
 
             Invalidate();
         }
@@ -1610,6 +1662,8 @@ namespace ChessR1
                                 // Now that the piece has moved, erase its previous legal moves.
                                 m_nValidMovesForOnePiece = 0;
                                 bDidMove = true;
+
+#if false
                                 UseWaitCursor = true;
 #if false
                                 ComputeLegalMovesForComputer(ref m_board);
@@ -1640,6 +1694,9 @@ namespace ChessR1
                                 }
 #endif
                                 UseWaitCursor = false;
+#else
+                                ChooseAndMakeMoveForComputer(ref m_board);
+#endif
                                 //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"MouseDown: board is now\r\n{ComputeTextualBoard()}");
                                 break;
                             } else {
