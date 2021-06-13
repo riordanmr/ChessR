@@ -1241,68 +1241,69 @@ namespace ChessR1
             return score;
         }
 
-#if false
-        void ChooseAndMakeMoveForComputer(ref Board board, ref ulong[] aryValidMoves, int nValidMoves) {
+        void ChooseAndMakeMoveForComputerSimple(ref Board board, ref ulong[] aryValidMoves, int nValidMoves) {
             if (nValidMoves > 0) {
                 DumpValidMoves("Valid moves for computer", ref aryValidMoves, nValidMoves);
-#if false
-                // For now, choose a piece at random.
-                int idxMove = m_random.Next(nValidMoves);
-#endif
-                // Loop through all legal moves, evaluating the board position 
-                // that would result if we made each of those moves.
-                // Store the results in m_ScoresForValidMovesForComputer.
-                int irowStart = -1, icolStart = -1, irowStop = -1, icolStop = -1;
-                int score;
                 ulong move = 0;
-                BoardSaveState boardSaveState = new BoardSaveState();
-                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                int irowStart = -1, icolStart = -1, irowStop = -1, icolStop = -1;
+                if (0 == m_lookaheadPlies) {
+                    // For now, choose a piece at random.
+                    int idxMove = m_random.Next(nValidMoves);
                     move = aryValidMoves[idxMove];
-                    DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
-                    //int piece = board.cells[irowStart, icolStart];
-                    SaveBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
-                    MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
-                    score = EvaluateBoard(ref board);
-                    // We will search for the move with the highest score. 
-                    // So if we (the computer) are playing black piece, negate the score,
-                    // so that moves that are favorable for Black will result in high scores.
-                    if (m_ComputersColor == PieceColor.Black) score = -score;
-                    m_ScoresForValidMovesForComputer[idxMove] = score;
-                    RestoreBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
-                }
-
-                // Find the move with the highest score.  (There may be more than one with that score.)
-                int highScore = -99999, idxOfHigh = 0;
-                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
-                    if (m_ScoresForValidMovesForComputer[idxMove] > highScore) {
-                        highScore = m_ScoresForValidMovesForComputer[idxMove];
-                        idxOfHigh = idxMove;
+                    //DebugOut($"For 0 ply lookahead chose move at random: {DescribeMove(move)}");
+                } else {
+                    // Loop through all legal moves, evaluating the board position 
+                    // that would result if we made each of those moves.
+                    // Store the results in m_ScoresForValidMovesForComputer.
+                    int score;
+                    BoardSaveState boardSaveState = new BoardSaveState();
+                    for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                        move = aryValidMoves[idxMove];
+                        DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+                        //int piece = board.cells[irowStart, icolStart];
+                        SaveBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
+                        MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
+                        score = EvaluateBoard(ref board);
+                        // We will search for the move with the highest score. 
+                        // So if we (the computer) are playing black piece, negate the score,
+                        // so that moves that are favorable for Black will result in high scores.
+                        if (m_ComputersColor == PieceColor.Black) score = -score;
+                        m_ScoresForValidMovesForComputer[idxMove] = score;
+                        RestoreBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
                     }
-                }
-                // Count the number of moves with that score.
-                int nWithHighScore = 0;
-                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
-                    if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
-                        nWithHighScore++;
-                    }
-                }
 
-                // Choose a move at random from those tied with the highest score.
-                int nthRandom = m_random.Next(nWithHighScore);
-                if (0!=(m_DebugBits & DBG_MISC)) DebugOut($"I found {nWithHighScore} moves with best score {highScore}; will choose # {nthRandom}");
-                for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
-                    if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
-                        if (nthRandom-- <= 0) {
-                            move = aryValidMoves[idxMove];
-                            break;
+                    // Find the move with the highest score.  (There may be more than one with that score.)
+                    int highScore = -99999, idxOfHigh = 0;
+                    for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                        if (m_ScoresForValidMovesForComputer[idxMove] > highScore) {
+                            highScore = m_ScoresForValidMovesForComputer[idxMove];
+                            idxOfHigh = idxMove;
+                        }
+                    }
+                    // Count the number of moves with that score.
+                    int nWithHighScore = 0;
+                    for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                        if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
+                            nWithHighScore++;
+                        }
+                    }
+
+                    // Choose a move at random from those tied with the highest score.
+                    int nthRandom = m_random.Next(nWithHighScore);
+                    if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"I found {nWithHighScore} moves with best score {highScore}; will choose # {nthRandom}");
+                    for (int idxMove = 0; idxMove < nValidMoves; idxMove++) {
+                        if (m_ScoresForValidMovesForComputer[idxMove] == highScore) {
+                            if (nthRandom-- <= 0) {
+                                move = aryValidMoves[idxMove];
+                                break;
+                            }
                         }
                     }
                 }
-
                 DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
                 int piece = board.cells[irowStart, icolStart];
                 //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
-                if (0!=(m_DebugBits & DBG_MISC)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {highScore}");
+                if (0!=(m_DebugBits & DBG_MISC)) DebugOut($"For {m_lookaheadPlies}-ply lookahead, computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)}");
                 MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, true);
             } else {
                 if (KingIsUnderAttack(ref m_board, m_ComputersColor)) {
@@ -1313,38 +1314,37 @@ namespace ChessR1
                 m_bGameOver = true;
             }
         }
-#endif
 
         void ChooseAndMakeMoveForComputer(ref Board board) {
             UseWaitCursor = true;
-#if false
-            ComputeLegalMovesForComputer(ref m_board);
-            ChooseAndMakeMoveForComputer(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
-#else
-            m_stopwatch.Reset();
-            m_stopwatch.Start();
-            long result = ChooseMove(ref m_board, m_ComputersColor, 1, 0);
-            m_stopwatch.Stop();
-            var elapsed = m_stopwatch.Elapsed;
-            var strElapsed = String.Format("{0:00}:{1:00}:{2:00}.{3:000}", elapsed.Hours, elapsed.Minutes, elapsed.Seconds, elapsed.Milliseconds);
-            if (RESULT_NO_VALID_MOVES == result) {
-                if (KingIsUnderAttack(ref m_board, m_ComputersColor)) {
-                    SetMessage("Human wins!");
-                } else {
-                    SetMessage("Stalemate!");
-                }
-                m_bGameOver = true;
+            if (m_lookaheadPlies <= 1) {
+                ComputeLegalMovesForComputer(ref m_board);
+                ChooseAndMakeMoveForComputerSimple(ref m_board, ref m_ValidMovesForComputer, m_nValidMovesForComputer);
             } else {
-                int score = (int)(result >> 32);
-                ulong move = (0xffffffff & (ulong)result);
-                int irowStart, icolStart, irowStop, icolStop;
-                DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
-                int piece = m_board.cells[irowStart, icolStart];
-                //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
-                if (0 != (m_DebugBits & DBG_MOVES)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {score}; took {strElapsed}");
-                MovePiece(ref m_board, irowStart, icolStart, irowStop, icolStop, true);
+                m_stopwatch.Reset();
+                m_stopwatch.Start();
+                long result = ChooseMove(ref m_board, m_ComputersColor, 1, 0);
+                m_stopwatch.Stop();
+                var elapsed = m_stopwatch.Elapsed;
+                var strElapsed = String.Format("{0:00}:{1:00}:{2:00}.{3:000}", elapsed.Hours, elapsed.Minutes, elapsed.Seconds, elapsed.Milliseconds);
+                if (RESULT_NO_VALID_MOVES == result) {
+                    if (KingIsUnderAttack(ref m_board, m_ComputersColor)) {
+                        SetMessage("Human wins!");
+                    } else {
+                        SetMessage("Stalemate!");
+                    }
+                    m_bGameOver = true;
+                } else {
+                    int score = (int)(result >> 32);
+                    ulong move = (0xffffffff & (ulong)result);
+                    int irowStart, icolStart, irowStop, icolStop;
+                    DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
+                    int piece = m_board.cells[irowStart, icolStart];
+                    //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
+                    if (0 != (m_DebugBits & DBG_MOVES)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {score}; took {strElapsed}");
+                    MovePiece(ref m_board, irowStart, icolStart, irowStop, icolStop, true);
+                }
             }
-#endif
             int nValidMovesForHuman = 0;
             ComputeLegalMovesForSide(ref m_board, OtherPieceColor(m_ComputersColor), ref m_ValidMoves, 0, ref nValidMovesForHuman);
             if (0 == nValidMovesForHuman) {
