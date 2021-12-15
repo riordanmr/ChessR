@@ -1572,6 +1572,19 @@ namespace ChessR1
             }
         }
 
+        private void saveToolStripMenuItem_Click(object sender, EventArgs e) {
+            SaveFileDialog saveFileDialog1 = new SaveFileDialog();
+            saveFileDialog1.Filter = "Forsyth–Edwards Notation|*.fen";
+            saveFileDialog1.Title = "Save board position in FEN format";
+            saveFileDialog1.ShowDialog();
+            if (saveFileDialog1.FileName != "") { 
+                // We save only when it's the human's turn to move.  So the color to move
+                // is always the opposite of the computer's color.
+                int colorToMove = PieceColor.Black - m_ComputersColor;
+                m_board.SaveAsFEN(saveFileDialog1.FileName, colorToMove);
+            }
+        }
+
         private void MouseRightClickEvent(object sender, MouseEventArgs e, int curRow, int curCol) {
             FormChoosePiece form = new FormChoosePiece();
             form.ShowDialog();

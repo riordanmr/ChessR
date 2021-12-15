@@ -32,8 +32,9 @@ namespace ChessR1
             this.newToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.computerPlaysBlackToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.computerPlaysWhiteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.settingsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.saveToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -56,7 +57,7 @@ namespace ChessR1
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.Padding = new System.Windows.Forms.Padding(8, 2, 0, 2);
-            this.menuStrip1.Size = new System.Drawing.Size(1133, 40);
+            this.menuStrip1.Size = new System.Drawing.Size(1133, 42);
             this.menuStrip1.TabIndex = 1;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -65,20 +66,21 @@ namespace ChessR1
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.newToolStripMenuItem,
             this.settingsToolStripMenuItem,
+            this.saveToolStripMenuItem,
             this.exitToolStripMenuItem});
+            this.fileToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
-            //this.fileToolStripMenuItem.Size = new System.Drawing.Size(97, 38);
+            this.fileToolStripMenuItem.Size = new System.Drawing.Size(97, 38);
             this.fileToolStripMenuItem.Text = "&Game";
-			this.fileToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             // 
             // newToolStripMenuItem
             // 
             this.newToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.computerPlaysBlackToolStripMenuItem,
             this.computerPlaysWhiteToolStripMenuItem});
-			this.newToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.newToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.newToolStripMenuItem.Name = "newToolStripMenuItem";
-            //this.newToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
+            this.newToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
             this.newToolStripMenuItem.Text = "&New...";
             // 
             // computerPlaysBlackToolStripMenuItem
@@ -95,21 +97,28 @@ namespace ChessR1
             this.computerPlaysWhiteToolStripMenuItem.Text = "Computer Plays &White";
             this.computerPlaysWhiteToolStripMenuItem.Click += new System.EventHandler(this.computerPlaysWhiteToolStripMenuItem_Click);
             // 
+            // settingsToolStripMenuItem
+            // 
+            this.settingsToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.settingsToolStripMenuItem.Name = "settingsToolStripMenuItem";
+            this.settingsToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
+            this.settingsToolStripMenuItem.Text = "&Settings...";
+            this.settingsToolStripMenuItem.Click += new System.EventHandler(this.settingsToolStripMenuItem_Click);
+            // 
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            //this.exitToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
-            // settingsToolStripMenuItem
+            // saveToolStripMenuItem
             // 
-			this.settingsToolStripMenuItem.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.settingsToolStripMenuItem.Name = "settingsToolStripMenuItem";
-            //this.settingsToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
-            this.settingsToolStripMenuItem.Text = "&Settings...";
-            this.settingsToolStripMenuItem.Click += new System.EventHandler(this.settingsToolStripMenuItem_Click);
+            this.saveToolStripMenuItem.Name = "saveToolStripMenuItem";
+            this.saveToolStripMenuItem.Size = new System.Drawing.Size(359, 44);
+            this.saveToolStripMenuItem.Text = "Sa&ve...";
+            this.saveToolStripMenuItem.Click += new System.EventHandler(this.saveToolStripMenuItem_Click);
             // 
             // ChessR1Form
             // 
@@ -144,6 +153,7 @@ namespace ChessR1
         private System.Windows.Forms.ToolStripMenuItem computerPlaysBlackToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem computerPlaysWhiteToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem settingsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem saveToolStripMenuItem;
     }
 }
 
