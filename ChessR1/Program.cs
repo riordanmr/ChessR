@@ -81,13 +81,19 @@ namespace ChessR1
         public bool[] bOKCastleKing = new bool[] { true, true };
         public uint cachedWhiteKingPosition = 0;
         public uint cachedBlackKingPosition = 0;
+        // In FENLetters, the letter at offset N is the letter used in FEN
+        // to represent that piece.  N is the value of a piece in this program,
+        // as per PieceType and PieceColor.
+        const string FENLetters = " KQRBNP  kqrbnpz"; //" ♔♕♖♗♘♙ ♚♛♜♝♞♟";
 
         // Represent the current position in FEN: Forsyth–Edwards Notation.
         // See https://en.wikipedia.org/wiki/Forsyth–Edwards_Notation.
         public string PositionAsFEN(int colorToMove)
         {
-            const string FENLetters = " KQRBNP  kqrbnpz"; //" ♔♕♖♗♘♙ ♚♛♜♝♞♟";
             string fen = "";
+            // Here's the FEN representation of the position after 1. e2e4:
+            // rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1
+            //
             // Part 1:
             // Piece placement (from White's perspective). Each rank is described, starting with rank 8
             // and ending with rank 1; within each rank, the contents of each square are described from
@@ -160,6 +166,87 @@ namespace ChessR1
         public void SaveAsFEN(string filename, int colorToMove) {
             string fen = PositionAsFEN(colorToMove);
             File.WriteAllText(filename, fen);
+        }
+
+        // Load the board from the given FEN string.
+        // Entry:   fen         is a Forsyth–Edwards Notation description of a board position.
+        // Exit:    Returns true if we loaded the position OK.
+        //          colorToMove is the piece color to move next.  (The human is always the 
+        //                      one to move.)
+        //          errmsg      is an error message, if we return false.
+        bool LoadFromFEN(string fen, out int colorToMove, out string errmsg) {
+            bool bOK = true;
+            errmsg = "";
+            colorToMove = 0;
+            string[] aryParts = fen.Split(' ');
+            if (aryParts.Length == 6) {
+                // Parse part 1, which describes the board.
+                string[] aryRows = aryParts[0].Split('/');
+                if (aryRows.Length == 8) {
+                    for(int irow=0; irow <aryRows.Length; irow++) {
+                        //var aryCurRow = aryRows[irow].ToCharArray();
+                        var strCurRow = aryRows[irow];
+                        int icol = 0;
+                        for(int j=0; j< strCurRow.Length; j++) {
+                            string FENPiece = strCurRow.Substring(j, 1);
+                            // Check whether this character is a digit, meaning spaces.
+                            int nSpaces;
+                            if (Int32.TryParse(FENPiece, out nSpaces)) {
+                                for(int ispace=0; ispace<nSpaces; ispace++) {
+                                    cells[irow, icol] = PieceType.Empty;
+                                    icol++;
+                                }
+                            } else {
+                                // It's not a digit, so check it against the legal characters
+                                // that represent pieces.
+                                int piece = FENLetters.IndexOf(FENPiece);
+                                if (piece > 0) {
+                                    cells[irow, icol] = (byte)piece;
+                                    icol++;
+                                } else {
+                                    bOK = false;
+                                    errmsg = "Unexpected character '" + FENPiece + "'";
+                                }
+                            }
+                        }
+                    }
+
+                    // Load color to move next.
+                    if (aryParts[1] == "w") {
+                        colorToMove = PieceColor.White;
+                    } else {
+                        colorToMove = PieceColor.Black;
+                    }
+                } else {
+                    bOK = false;
+                    errmsg = "The number of rows must be 8.";
+                }
+            } else {
+                bOK = false;
+                errmsg = "FEN description must contains 6 parts.";
+            }
+            return bOK;
+        }
+
+        public void OpenFromFEN(string filename, out int colorToMove) {
+            string fen = null;
+            colorToMove = 0;
+            using (StreamReader file = new StreamReader(filename)) {
+                string line;
+                while ((line = file.ReadLine()) != null) {
+                    if (line.Length > 0 && !line.StartsWith("#")) {
+                        fen = line;
+                        break;
+                    }
+                }
+            }
+            if(null != fen) {
+                string errmsg;
+                if(!LoadFromFEN(fen, out colorToMove, out errmsg)) {
+                    MessageBox.Show(errmsg, "Bad FEN file");
+                }
+
+            }
         }
     };
 

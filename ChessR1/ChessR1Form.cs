@@ -78,7 +78,7 @@ namespace ChessR1
         int m_lookaheadPlies = 4;
         const ulong DBG_MISC = 2;
         const ulong DBG_MOVES = 1;
-        ulong m_DebugBits = DBG_MOVES;
+        ulong m_DebugBits = DBG_MOVES | DBG_MISC;
         StreamWriter m_swDebug = new StreamWriter("ChessR1.log");
         Stopwatch m_stopwatch = new Stopwatch();
 
@@ -1572,6 +1572,23 @@ namespace ChessR1
             }
         }
 
+        // Process File | Open menu command, to open FEN file and replace the current game state
+        // with the contents of that file.
+        private void openToolStripMenuItem_Click(object sender, EventArgs e) {
+            OpenFileDialog openFileDialog1 = new OpenFileDialog();
+            openFileDialog1.Filter = "Forsyth–Edwards Notation (*.fen)|*.fen|All files (*.*)|*.*";
+            openFileDialog1.Title = "Replace current game with board postion from FEN file";
+            openFileDialog1.ShowDialog();
+            if(openFileDialog1.FileName != "") {
+                int colorToMove;
+                m_board.OpenFromFEN(openFileDialog1.FileName, out colorToMove);
+                m_ComputersColor = PieceColor.Black - colorToMove;
+                m_bWhiteOnBottom = (m_ComputersColor == PieceColor.Black);
+                Invalidate();
+            }
+        }
+
+        // Process File | Save menu command, to save the current state as a FEN file.
         private void saveToolStripMenuItem_Click(object sender, EventArgs e) {
             SaveFileDialog saveFileDialog1 = new SaveFileDialog();
             saveFileDialog1.Filter = "Forsyth–Edwards Notation|*.fen";
