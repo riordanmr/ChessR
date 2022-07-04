@@ -17,6 +17,10 @@ namespace ChessR1
     };
 
 
+    public class CmdLineSettings
+    {
+        public bool bStartWithComputerWhite = false;
+    }
 
     public class PieceType
     {
@@ -170,6 +174,7 @@ namespace ChessR1
 
         // Load the board from the given FEN string.
         // Entry:   fen         is a Forsyth–Edwards Notation description of a board position.
+        //                      See http://www.chessnotation.com/FEN.htm
         // Exit:    Returns true if we loaded the position OK.
         //          colorToMove is the piece color to move next.  (The human is always the 
         //                      one to move.)
@@ -252,14 +257,28 @@ namespace ChessR1
 
     static class Program
     {
+        static void ParseCmdLine(string [] args, ref CmdLineSettings cmdLineSettings) {
+            foreach(string arg in args) {
+                if(arg == "-w") {
+                    cmdLineSettings.bStartWithComputerWhite = true;
+                } else {
+                    MessageBox.Show($"Unrecognized cmdline argument: {arg}");
+                }
+            }
+        }
+
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main() {
+        static void Main(string [] args) {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ChessR1Form());
+            CmdLineSettings cmdLineSettings = new CmdLineSettings();
+            ParseCmdLine(args, ref cmdLineSettings);
+            ChessR1Form chessR1Form = new ChessR1Form();
+            chessR1Form.m_cmdLineSettings = cmdLineSettings;
+            Application.Run((chessR1Form));
         }
     }
 }

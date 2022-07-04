@@ -4,16 +4,16 @@
 // the chess engine.
 // I'm starting this as a .NET WinForms app for familiarity, but that 
 // will not necessarily be its final form. 
+// I may eventually translate this to another, simpler, language, so I 
+// am not using all the fancy features of C#. 
 // Mark Riordan  23-JAN-2021
 
 //#define USING_OUTPUTDEBUGSTRING
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Text;
 using System.Windows.Forms;
 
 namespace ChessR1
@@ -81,6 +81,7 @@ namespace ChessR1
         ulong m_DebugBits = DBG_MOVES | DBG_MISC;
         StreamWriter m_swDebug = new StreamWriter("ChessR1.log");
         Stopwatch m_stopwatch = new Stopwatch();
+        public CmdLineSettings m_cmdLineSettings;
 
         public ChessR1Form() {
             InitializeComponent();
@@ -127,6 +128,8 @@ namespace ChessR1
             labelMessage.Text = "";
         }
 
+        // Set the color being played by the computer.
+        // Input:   color is 8 for black or 0 for white.
         public void SetComputersColor(int color) {
             m_ComputersColor = color;
             //m_ComputersDirection = (PieceColor.Black == m_ComputersColor) ? -1 : 1;
@@ -134,11 +137,15 @@ namespace ChessR1
         }
 
         // Combine a row and column number into a single integer.
+        // Exit:    Returns the position in the bottom 6 bits of an integer:
+        //          Bits 5-3: column; bits 2-0: row.
         ulong EncodePositionFromRowAndCol(int irow, int icol) {
             return (ulong)(NUMCOLS * icol + irow);
         }
 
         // Create an integer which encodes a move.
+        // Exit:    Returns the move in the bottom 12 bits of an integer:
+        //          Bits 11-9: column from; bits 8-6: column from; bits 5-3: column to; bits 2-0: row to.
         ulong EncodeMoveFromRowsAndCols(int irowStart, int icolStart, int irowStop, int icolStop) {
             ulong encodedMove = (EncodePositionFromRowAndCol(irowStart, icolStart) << 6) | EncodePositionFromRowAndCol(irowStop, icolStop);
             //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"EncodeMoveFromRowsAndCols: from ({irowStart},{icolStart}) to ({irowStop}, {icolStop}) encoded as {encodedMove} or {Convert.ToString(encodedMove, 8)} octal");
@@ -168,6 +175,24 @@ namespace ChessR1
             int irowStart, icolStart, irowStop, icolStop;
             DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
             return RowColToAlgebraic(irowStart, icolStart) + RowColToAlgebraic(irowStop, icolStop);
+        }
+
+        // Given a ulong containing a sequence of moves, return a string representation
+        // of those moves.
+        // Entry:   bestLine    contains a sequence of 12-bit moves, with the least significant
+        //                      12-bit packet being the last.  12 bits of 0's indicate no move.
+        string DescribeBestLine(ulong bestLine) {
+            //DebugOut($"Entered DescribeBestLine with bestLine {String.Format("{0:X}", bestLine)}");
+            string strBestLine = "";
+            for(int ibits=0; ibits < 64; ibits += 12) {
+                ulong move = (bestLine >> ibits) & 0xfff;
+                if (0==move) {
+                    break;
+                } else {
+                    strBestLine = DescribeMove(move) + " " + strBestLine;
+                }
+            }
+            return strBestLine;
         }
 
         int ColorOfCell(byte cell) {
@@ -1323,7 +1348,8 @@ namespace ChessR1
             } else {
                 m_stopwatch.Reset();
                 m_stopwatch.Start();
-                long result = ChooseMove(ref m_board, m_ComputersColor, 1, 0);
+                ulong moveSequence = 0, bestLine = 0;
+                long result = ChooseMove(ref m_board, m_ComputersColor, 1, 0, moveSequence, out bestLine);
                 m_stopwatch.Stop();
                 var elapsed = m_stopwatch.Elapsed;
                 var strElapsed = String.Format("{0:00}:{1:00}:{2:00}.{3:000}", elapsed.Hours, elapsed.Minutes, elapsed.Seconds, elapsed.Milliseconds);
@@ -1341,7 +1367,7 @@ namespace ChessR1
                     DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
                     int piece = m_board.cells[irowStart, icolStart];
                     //if (0!=(m_DebugBits & DBG_NORMAL)) DebugOut($"ChooseMoveForComputer: nValidMoves={nValidMoves}; I chose index {idxMove} which is {move}");
-                    if (0 != (m_DebugBits & DBG_MOVES)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {score}; took {strElapsed}");
+                    if (0 != (m_DebugBits & DBG_MOVES)) DebugOut($"Computer will move {DescribePiece(piece)} from {RowColToAlgebraic(irowStart, icolStart)} to {RowColToAlgebraic(irowStop, icolStop)} with score {score}; took {strElapsed} bestLine {DescribeBestLine(bestLine)}");
                     MovePiece(ref m_board, irowStart, icolStart, irowStop, icolStop, true);
                 }
             }
@@ -1359,11 +1385,22 @@ namespace ChessR1
 
         }
 
+        // Choose the next move to make.
+        // Entry:   board   is the current board position.
+        //          colorMoving is which side is moving (as a PieceColor value).
+        //          iply    is the number of plies from the original position; we use
+        //                  this is know when to stop looking ahead.
+        //          offsetValidMoves    is the index into m_validMoves for the next
+        //                  unused position in the array.  This will initially be 0, but
+        //                  will be > 0 for recursive calls.
+        //          moveSequence    has an encoding of the best moves computed so far;
+        //                  This will be 0 for the initial call, but != 0 for recursive calls.
         // Exit:  Returns both the score of the best move so far, and the move, encoded as:
         //        score << 32 | move
-        long ChooseMove(ref Board board, int colorMoving, int iply, int offsetValidMoves) {
+        long ChooseMove(ref Board board, int colorMoving, int iply, int offsetValidMoves, ulong bestLineSoFar, out ulong bestLine) {
             if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"ChooseMove called for color {colorMoving} ply {iply} offsetValidMoves {offsetValidMoves}");
             int nValidMoves = 0;
+            bestLine = 0;
             ComputeLegalMovesForSide(ref board, colorMoving, ref m_ValidMoves, offsetValidMoves, ref nValidMoves);
             if (1 == iply && 0 == nValidMoves) {
                 return RESULT_NO_VALID_MOVES;
@@ -1380,39 +1417,71 @@ namespace ChessR1
                 bestScore = -99999;
             }
             long score;
-            ulong bestMove = 0;
+            ulong bestMove = 0, bestLineOut = 0;
             BoardSaveState boardSaveState = new BoardSaveState();
             int irowStart = -1, icolStart = -1, irowStop = -1, icolStop = -1;
+            string msg = "";
+            string strBestMove = "";
+            bool bRecurse = (iply < m_lookaheadPlies);
             for (int imove = 0; imove < nValidMoves; imove++) {
                 var move = m_ValidMoves[imove + offsetValidMoves];
                 DecodeMoveFromInt(move, out irowStart, out icolStart, out irowStop, out icolStop);
-                if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"Considering move {RowColToAlgebraic(irowStart, icolStart)}{RowColToAlgebraic(irowStop, icolStop)}");
+                string desc = DescribeMove(move);
+#if DEBUG_UNEXPECTEDMOVE
+                bool bPuzzlingMove = false;
+                if ("c3e4" == desc && iply == 1) bPuzzlingMove = true;
+                if (bPuzzlingMove) {
+                    if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"ZZ Start of considering puzzling move.");
+                }
+#endif
+                if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"Considering move {RowColToAlgebraic(irowStart, icolStart)}{RowColToAlgebraic(irowStop, icolStop)} ply {iply}");
                 SaveBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
                 MovePiece(ref board, irowStart, icolStart, irowStop, icolStop, false);
-                if (iply < m_lookaheadPlies) {
-                    score = ChooseMove(ref board, PieceColor.Black ^ colorMoving, iply + 1, offsetValidMoves + nValidMoves);
+                if (bRecurse) {
+                    score = ChooseMove(ref board, PieceColor.Black ^ colorMoving, iply + 1, 
+                        offsetValidMoves + nValidMoves, (bestLineSoFar << 12) | move, out bestLineOut);
                     score = (score >> 32);
                 } else {
                     // Evaluate board only at leaf nodes.
                     score = EvaluateBoard(ref board);
-                    // Insert score into validMoves
                 }
-                if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"Score for move {imove}: {DescribeMove(move)} ply {iply} was {score}; best so far={bestScore} maximize={maximize}");
+                //if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"Score for move {imove}: {DescribeMove(move)} ply {iply} was {score}; best so far={bestScore} maximize={maximize}");
+#if DEBUG_UNEXPECTEDMOVE
+                if (bPuzzlingMove) if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"ZZ Line for puzzling move: {DescribeBestLine(bestLineOut)} score {score}");
+                if(DescribeBestLine(bestLineSoFar).StartsWith("c3e4 d7d5 ")) {
+                    if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"WW For ply {iply} bestLineSoFar {DescribeBestLine(bestLineSoFar)} score {score} for move {desc}");
+                }
+#endif
                 RestoreBoardState(irowStart, icolStart, irowStop, icolStop, ref board, ref boardSaveState);
                 if (maximize) {
                     if (score >= bestScore) {
                         bestScore = score;
                         bestMove = move;
+                        bestLine = bestLineOut;
+                        strBestMove = DescribeMove(move);
+                        if (0 != (m_DebugBits & DBG_MISC)) msg = $"Best score at ply {iply} was for {DescribeMove(move)} and is {score}; maximize={maximize}";
                     }
                 } else {
                     if (score <= bestScore) {
                         bestScore = score;
                         bestMove = move;
+                        bestLine = bestLineOut;
+                        strBestMove = DescribeMove(move);
+                        if (0 != (m_DebugBits & DBG_MISC)) msg = $"Best score at ply {iply} was for {DescribeMove(move)} and is {score}; maximize={maximize}";
                     }
                 }
+#if DEBUG_UNEXPECTEDMOVE
+                if(bPuzzlingMove) {
+                    if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"ZZ Done considering puzzling move.  strBestMove was {strBestMove}; bestScore {bestScore} ply {iply} bestLine {DescribeBestLine(bestLine)}");
+                }
+#endif
             }
+            if (0 != (m_DebugBits & DBG_MISC)) DebugOut(msg);
             long result = (bestScore << 32) | (long)bestMove;
             if (0 != (m_DebugBits & DBG_MISC)) DebugOut($"ChooseMove for color {colorMoving} ply {iply} returning best score {bestScore} bestMove {DescribeMove(bestMove)} of {nValidMoves} moves");
+            if(!bRecurse) {
+                bestLine = (bestLineSoFar << 12) | bestMove;
+            }
             return result;
         }
 
@@ -1483,6 +1552,9 @@ namespace ChessR1
 
         private void ChessR1Form_Load(object sender, EventArgs e) {
             InitializeGame();
+            if (m_cmdLineSettings.bStartWithComputerWhite) {
+                computerPlaysWhiteToolStripMenuItem_Click(null, null);
+            }
         }
 
         private void ChessR1Form_Paint(object sender, PaintEventArgs e) {
